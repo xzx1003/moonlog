@@ -44,6 +44,42 @@ class CLI(unittest.TestCase):
                 self.analyze(*args, ok=False)
                 self.assertFalse(self.report.exists())
 
+    def test_analyze_help(self):
+        result = self.run_cli('analyze', '--help')
+        self.assertIn('Usage: moonlog analyze', result.stdout)
+        self.assertEqual(result.stderr, '')
+
+    def test_cli_errors_hide_internal_failure_wrapper(self):
+        for args in [(), ('analyze',),
+                     ('analyze', self.root / 'missing.log', '--report', self.report)]:
+            with self.subTest(args=args):
+                result = self.run_cli(*args, ok=False)
+                self.assertTrue(result.stderr.startswith('moonlog: '), result.stderr)
+                for marker in ('Failure(', '.mbt:', 'FAILED:'):
+                    self.assertNotIn(marker, result.stderr)
+        self.assertFalse(self.report.exists())
+
+    def test_other_level_is_accepted(self):
+        self.source.write_text('2026-10-28 08:00:00 [OTHER] noise\n', encoding='utf8')
+        self.analyze('--level', 'OTHER')
+        report = self.report.read_text()
+        self.assertIn('- Lines matching filters: 1\n', report)
+        self.assertIn('| OTHER | 1 |', report)
+
+    def test_signature_length_cap_is_message_only(self):
+        self.source.write_text(
+            json.dumps({'ts': 'bad', 'level': 'ERROR', 'msg': 'a' * 600}) + '\n',
+            encoding='utf8',
+        )
+        self.analyze('--max-samples', '0')
+        report = self.report.read_text()
+        self.assertIn('message portion is capped at 512', report)
+        rows = [line for line in report.splitlines() if line.startswith('| ERROR: ')]
+        self.assertEqual(len(rows), 1)
+        signature = rows[0].strip('|').split('|')[0].strip()
+        self.assertEqual(signature, 'ERROR: ' + 'a' * 512)
+        self.assertEqual(len(signature), 519)
+
     def test_fixture_spike_context_and_determinism(self):
         self.source.write_bytes((ROOT / 'fixtures/incident.log').read_bytes())
         self.analyze('--context', '2')

@@ -48,7 +48,7 @@ Deterministic log evidence; spike detection does not establish a root cause.
 
 ## Top error signatures (matching filters)
 
-Decimal runs become #; signatures are capped at 512 characters. Counts cover retained signatures only.
+Decimal runs become #; the message portion is capped at 512 characters (the level prefix is outside the cap). Counts cover retained signatures only.
 
 | Signature | Occurrences |
 | --- | ---: |

@@ -62,6 +62,10 @@ fn run(args : Array[String]) -> Unit raise {
   if args[1] != "analyze" || args.length() < 3 {
     fail("expected analyze <input.log> --report <incident.md>; use --help")
   }
+  if args[2] == "--help" || args[2] == "-h" {
+    println(Usage)
+    return
+  }
   let source = args[2]
   let mut report = ""
   let mut bucket_minutes = 5
@@ -172,8 +176,20 @@ fn run(args : Array[String]) -> Unit raise {
 }
 
 ///|
+fn failure_message(message : String) -> String {
+  match message.split_once(" FAILED: ") {
+    Some((_, detail)) => detail.to_owned()
+    None => message
+  }
+}
+
+///|
 fn main {
   run(@env.args()) catch {
+    Failure(message) => {
+      @io.stderr("moonlog: \{failure_message(message)}")
+      @io.exit(1)
+    }
     error => {
       @io.stderr("moonlog: \{error}")
       @io.exit(1)
