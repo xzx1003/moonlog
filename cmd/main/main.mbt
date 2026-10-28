@@ -2,9 +2,10 @@
 const Usage : String =
   #|MoonLog 0.1.0 - offline incident troubleshooting
   #|
-  #|Usage: moonlog analyze <input.log> --report <incident.md> [options]
+  #|Usage: moonlog analyze <input.log> [<input2.log> ...] --report <incident.md> [options]
   #|
   #|  --format FORMAT      Report format: markdown or json (default markdown)
+  #|  --sampling MODE      Target selection: first or distributed (default first)
   #|  --bucket-minutes N   Time bucket width (default 5)
   #|  --baseline-buckets N Previous buckets in baseline (default 6)
   #|  --multiplier N       Strict spike multiplier (default 3)
@@ -23,7 +24,9 @@ const Usage : String =
   #|  --to TIMESTAMP       Inclusive UTC minute
   #|  --help               Show this help
   #|
-  #|Input must be a stable, regular UTF-8 file; it is scanned twice.
+  #|Inputs must be stable, regular UTF-8 files. One file is scanned twice;
+  #|multiple files, or --sampling distributed, are scanned three times.
+  #|Duplicate and hard/symbolic-link aliased inputs are rejected.
   #|Existing report files are never overwritten. No network or AI calls.
   #|
   #|Both formats write the file first, then print a terminal summary on stdout.
@@ -56,6 +59,52 @@ fn update_digest(digest : UInt64, raw : String) -> UInt64 {
 }
 
 ///|
+// A per-file stable identity captured during a scan: line count and rolling
+// digest. Each file must match across every pass, not just the aggregate total.
+struct FileSnapshot {
+  lines : Int32
+  digest : UInt64
+}
+
+///|
+// Read one file and apply consume to every physical line. Returns the file's
+// line count and rolling digest so the caller can verify it did not change.
+fn scan_file(
+  path : String,
+  max_line_bytes : Int32,
+  consume : (String) -> Unit raise,
+  begin~ : () -> Unit raise = fn() { () },
+) -> FileSnapshot raise {
+  let mut digest = 14695981039346656037UL
+  let mut lines = 0
+  begin()
+  @io.each_line(
+    path,
+    raw => {
+      digest = update_digest(digest, raw)
+      lines += 1
+      consume(raw)
+    },
+    max_line_bytes~,
+  )
+  { lines, digest, }
+}
+
+///|
+// Verify every file matches its earlier snapshot before proceeding.
+fn verify_snapshots(
+  files : Array[String],
+  before : Array[FileSnapshot],
+  after : Array[FileSnapshot],
+) -> Unit raise {
+  for i in 0..<files.length() {
+    if before[i].lines != after[i].lines || before[i].digest != after[i].digest {
+      fail("input changed between passes; analyze a stable snapshot instead")
+    }
+  }
+}
+
+///|
 fn run(args : Array[String]) -> Unit raise {
   if args.length() < 2 {
     fail("expected analyze <input.log> --report <incident.md>; use --help")
@@ -75,9 +124,20 @@ fn run(args : Array[String]) -> Unit raise {
     println(Usage)
     return
   }
-  let source = args[2]
+  // Positional arguments before the first option are input files; the rest are
+  // --flag value pairs. Input order is preserved and never re-sorted.
+  let sources : Array[String] = []
+  let mut i = 2
+  while i < args.length() && !args[i].has_prefix("--") {
+    sources.push(args[i])
+    i += 1
+  }
+  if sources.is_empty() {
+    fail("expected at least one input file; use --help")
+  }
   let mut report = ""
   let mut format = "markdown"
+  let mut sampling = @engine.SamplingMode::First
   let mut bucket_minutes = 5
   let mut baseline_buckets = 6
   let mut multiplier = 3
@@ -94,7 +154,6 @@ fn run(args : Array[String]) -> Unit raise {
   let mut from : Int64? = None
   let mut to : Int64? = None
   let seen : Map[String, Bool] = Map([])
-  let mut i = 3
   while i < args.length() {
     let flag = args[i]
     if flag == "--help" {
@@ -116,6 +175,15 @@ fn run(args : Array[String]) -> Unit raise {
           "markdown" => format = "markdown"
           "json" => format = "json"
           _ => fail("unknown format: \{value}; expected markdown or json")
+        }
+      "--sampling" =>
+        match value {
+          "first" => sampling = @engine.SamplingMode::First
+          "distributed" => sampling = @engine.SamplingMode::Distributed
+          _ =>
+            fail(
+              "unknown sampling mode: \{value}; expected first or distributed",
+            )
         }
       "--bucket-minutes" => bucket_minutes = positive_or_zero(value, flag)
       "--baseline-buckets" => baseline_buckets = positive_or_zero(value, flag)
@@ -157,11 +225,23 @@ fn run(args : Array[String]) -> Unit raise {
   if report == "" {
     fail("--report <incident.md> is required")
   }
-  if source == report {
-    fail("input and report must be different paths")
+  for source in sources {
+    if source == report {
+      fail("input and report must be different paths")
+    }
   }
   if from is Some(a) && to is Some(b) && a > b {
     fail("--from must not be after --to")
+  }
+  // Reject duplicate paths and hard/symbolic-link aliases using POSIX device
+  // number and inode, never string comparison of paths or log content.
+  let identities : Map[String, Bool] = Map([])
+  for source in sources {
+    let id = @io.stat_identity(source)
+    if identities.contains(id) {
+      fail("duplicate input file (same device and inode): \{source}")
+    }
+    identities[id] = true
   }
   let config = @engine.Config::new(
     bucket_minutes~,
@@ -174,57 +254,113 @@ fn run(args : Array[String]) -> Unit raise {
     max_signatures~,
   )
   let filter : @engine.Filter = { level, keyword, from, to, }
+  // One analyzer sees every file in caller order, so time buckets and spikes
+  // are shared across all inputs. File order only affects sampling and the
+  // order in which signatures are retained under capacity pressure.
   let analyzer = @engine.Analyzer::new(config, filter~)
-  let mut first_digest = 14695981039346656037UL
-  @io.each_line(
-    source,
-    raw => {
-      first_digest = update_digest(first_digest, raw)
-      analyzer.feed(raw)
-    },
-    max_line_bytes~,
-  )
+
+  // Pass 1: aggregate statistics across every file.
+  let snapshots = Array::makei(sources.length(), i => {
+    scan_file(sources[i], max_line_bytes, raw => analyzer.feed(raw))
+  })
   let analysis = analyzer.finish()
-  let contexts = @engine.ContextCollector::new(config)
-  let spike_signatures = @engine.SpikeSignatureCollector::new(analysis)
+
   // The comparison collector exists only when a signature was requested; the
   // spike signature collector stays unconditional.
+  let spike_signatures = @engine.SpikeSignatureCollector::new(analysis)
   let comparison = match selected_signature {
     Some(signature) =>
       Some(@engine.SignatureComparisonCollector::new(analysis, signature))
     None => None
   }
-  let mut second_digest = 14695981039346656037UL
-  let mut second_lines = 0
-  @io.each_line(
-    source,
-    raw => {
-      second_digest = update_digest(second_digest, raw)
-      second_lines += 1
+
+  let three_pass = sources.length() > 1 ||
+    (match sampling {
+      @engine.SamplingMode::Distributed => true
+      @engine.SamplingMode::First => false
+    })
+  let first_contexts = @engine.ContextCollector::new(config)
+  // Pass 2: count signatures, comparison windows and target occurrences.
+  let mut target_total : Int64 = 0L
+  let pass2 = Array::makei(sources.length(), i => {
+    scan_file(sources[i], max_line_bytes, raw => {
       ignore(spike_signatures.feed(raw))
       if comparison is Some(collector) {
         collector.feed(raw)
       }
-      contexts.feed(
+      let target = analysis.is_target(
         raw,
-        analysis.is_target(raw, mode=context_mode, signature=selected_signature),
+        mode=context_mode,
+        signature=selected_signature,
       )
-    },
-    max_line_bytes~,
-  )
-  if first_digest != second_digest || second_lines != analysis.total {
-    fail("input changed between passes; analyze a stable snapshot instead")
+      if target {
+        target_total += 1L
+      }
+      if !three_pass {
+        first_contexts.feed(raw, target)
+      }
+    })
+  })
+  verify_snapshots(sources, snapshots, pass2)
+
+  // Single file with the default first sampling keeps the two-pass path.
+  // Multi-file and distributed sampling use a third pass to extract context.
+  let file_windows : Array[@engine.FileContextWindow] = []
+  let mut sampled : Int32 = 0
+  let mut omitted : Int32 = 0
+  if !three_pass {
+    // Two-pass single-file first sampling.
+    let contexts = first_contexts
+    sampled = contexts.sampled()
+    omitted = contexts.omitted()
+    for window in contexts.windows() {
+      file_windows.push({ source: sources[0], window, })
+    }
+  } else {
+    // Three-pass: sample context with a shared budget and per-file windows.
+    let plan = @engine.SamplingPlan::new(target_total, max_samples, sampling)
+    let collector = @engine.MultiFileContextCollector::new(config, plan)
+    let pass3 = Array::makei(sources.length(), i => {
+      let source = sources[i]
+      scan_file(
+        source,
+        max_line_bytes,
+        raw => {
+          collector.feed(
+            raw,
+            analysis.is_target(
+              raw,
+              mode=context_mode,
+              signature=selected_signature,
+            ),
+          )
+        },
+        begin=fn() { collector.begin_file(source) },
+      )
+    })
+    verify_snapshots(sources, snapshots, pass3)
+    sampled = collector.sampled()
+    omitted = collector.omitted().to_int()
+    for file_window in collector.finish() {
+      file_windows.push(file_window)
+    }
   }
+
   let signature_comparisons = match comparison {
     Some(collector) => collector.comparisons()
     None => []
   }
   let result = @engine.ReportResult::new(
     analysis,
-    contexts,
+    file_windows,
+    sampled,
+    omitted,
     spike_signatures,
     context_mode,
-    source,
+    sources,
+    sampling~,
+    scans=if three_pass { 3 } else { 2 },
+    sample_limit=max_samples,
     selected_signature~,
     signature_comparisons~,
   )
@@ -233,10 +369,14 @@ fn run(args : Array[String]) -> Unit raise {
   } else {
     @engine.markdown_report(
       analysis,
-      contexts,
+      file_windows,
+      sampled,
+      omitted,
       spike_signatures,
       context_mode,
-      source,
+      sources,
+      sampling~,
+      scans=if three_pass { 3 } else { 2 },
       selected_signature~,
       signature_comparisons~,
     )

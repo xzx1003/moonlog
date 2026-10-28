@@ -32,10 +32,10 @@ fn safe_markdown(text : String) -> String {
 }
 
 ///|
-fn code_fence(windows : Array[ContextWindow]) -> String {
+fn code_fence(file_windows : Array[FileContextWindow]) -> String {
   let mut longest = 2
-  for window in windows {
-    for line in window.lines {
+  for file_window in file_windows {
+    for line in file_window.window.lines {
       let mut run = 0
       for ch in line.text.iter() {
         if ch == '`' {
@@ -83,10 +83,14 @@ pub fn format_multiplier(value : Double) -> String {
 ///|
 pub fn markdown_report(
   analysis : Analysis,
-  contexts : ContextCollector,
+  file_windows : Array[FileContextWindow],
+  sampled : Int32,
+  omitted : Int32,
   spike_signatures : SpikeSignatureCollector,
   context_mode : ContextMode,
-  source : String,
+  sources : Array[String],
+  sampling~ : SamplingMode = First,
+  scans~ : Int32 = 2,
   selected_signature~ : String? = None,
   signature_comparisons~ : Array[SignatureComparison] = [],
 ) -> String {
@@ -110,7 +114,11 @@ pub fn markdown_report(
   line("")
   line("## Summary")
   line("")
-  line("- Source: \{safe_markdown(source)}")
+  if sources.length() == 1 {
+    line("- Source: \{safe_markdown(sources[0])}")
+  } else {
+    line("- Sources: \{sources.map(fn(s) { safe_markdown(s) }).join(", ")}")
+  }
   line("- Engine: MoonLog 0.1.0 / native MoonBit")
   line("- Lines scanned: \{analysis.total}")
   line("- Lines matching filters: \{analysis.matched}")
@@ -123,8 +131,9 @@ pub fn markdown_report(
   )
   line("- Detected spikes: \{analysis.spikes.length()}")
   line(
-    "- Context targets sampled: \{contexts.sampled()} (limit \{c.max_samples}); omitted: \{contexts.omitted()}",
+    "- Context targets sampled: \{sampled} (limit \{c.max_samples}); omitted: \{omitted}",
   )
+  line("- Sampling mode: \{sampling.label()}; scans: \{scans}")
   line(
     "- Untracked signature occurrences after capacity limit: \{analysis.overflow_signatures}",
   )
@@ -421,8 +430,7 @@ pub fn markdown_report(
     )
   }
   line("")
-  let windows = contexts.windows()
-  if windows.is_empty() {
+  if file_windows.is_empty() {
     match selected_signature {
       Some(signature) =>
         line(
@@ -438,10 +446,13 @@ pub fn markdown_report(
         )
     }
   }
-  let fence = code_fence(windows)
-  for i in 0..<windows.length() {
-    let window = windows[i]
+  let fence = code_fence(file_windows)
+  for i in 0..<file_windows.length() {
+    let file_window = file_windows[i]
+    let window = file_window.window
     line("### Window \{i+1}")
+    line("")
+    line("Source: \{safe_markdown(file_window.source)}")
     line("")
     line(
       "Target source lines: \{window.targets.map(fn(n){n.to_string()}).join(", ")}. `>` marks sampled targets.",

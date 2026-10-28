@@ -1,12 +1,19 @@
 ///|
-// A view of the completed two-pass analysis. Construct only after verifying
-// that the input did not change; do not feed collectors after construction.
+// A view of the completed analysis. Construct only after verifying that every
+// input file's line count and digest stayed stable across the scans; do not
+// feed collectors after construction. Windows are per-file (FileContextWindow),
+// each carrying its own source and file-local line numbers.
 pub struct ReportResult {
   analysis : Analysis
-  contexts : ContextCollector
+  file_windows : Array[FileContextWindow]
+  sampled : Int32
+  omitted : Int32
   spike_signatures : SpikeSignatureCollector
   context_mode : ContextMode
-  source : String
+  sources : Array[String]
+  sampling : SamplingMode
+  scans : Int32
+  sample_limit : Int32
   selected_signature : String?
   signature_comparisons : Array[SignatureComparison]
 }
@@ -14,19 +21,29 @@ pub struct ReportResult {
 ///|
 pub fn ReportResult::new(
   analysis : Analysis,
-  contexts : ContextCollector,
+  file_windows : Array[FileContextWindow],
+  sampled : Int32,
+  omitted : Int32,
   spike_signatures : SpikeSignatureCollector,
   context_mode : ContextMode,
-  source : String,
+  sources : Array[String],
+  sampling~ : SamplingMode = First,
+  scans~ : Int32 = 2,
+  sample_limit~ : Int32 = 20,
   selected_signature~ : String? = None,
   signature_comparisons~ : Array[SignatureComparison] = [],
 ) -> ReportResult {
   {
     analysis,
-    contexts,
+    file_windows,
+    sampled,
+    omitted,
     spike_signatures,
     context_mode,
-    source,
+    sources,
+    sampling,
+    scans,
+    sample_limit,
     selected_signature,
     signature_comparisons,
   }
@@ -47,6 +64,10 @@ pub(all) struct SpikeSummary {
 pub(all) struct TerminalSummary {
   log_error_ratio : LogErrorRatio
   source : String
+  sources : Array[String]
+  sampling : SamplingMode
+  scans : Int32
+  sample_limit : Int32
   total : Int32
   matched : Int32
   untimed : Int32
@@ -85,15 +106,23 @@ pub fn ReportResult::summary(self : ReportResult) -> TerminalSummary {
   })
   {
     log_error_ratio: a.log_error_ratio(),
-    source: self.source,
+    source: if self.sources.length() == 1 {
+      self.sources[0]
+    } else {
+      ""
+    },
+    sources: self.sources.copy(),
+    sampling: self.sampling,
+    scans: self.scans,
+    sample_limit: self.sample_limit,
     total: a.total,
     matched: a.matched,
     untimed: a.untimed,
     errors: a.counts.get_or_default("ERROR", 0) +
     a.counts.get_or_default("FATAL", 0),
     context_mode: self.context_mode,
-    sampled_targets: self.contexts.sampled(),
-    omitted_targets: self.contexts.omitted(),
+    sampled_targets: self.sampled,
+    omitted_targets: self.omitted,
     omitted_global_signature_occurrences: a.overflow_signatures,
     spikes,
     selected_signature: self.selected_signature,
@@ -144,21 +173,17 @@ pub fn ReportResult::to_json(self : ReportResult) -> Json {
       "omitted_signature_occurrences": Json(self.spike_signatures.omitted(i)),
     })
   })
-  let windows = self.contexts
-    .windows()
-    .map(w => {
-      Json::object({
-        "targets": Json(w.targets),
-        "lines": Json::array(
-          w.lines.map(line => {
-            Json::object({
-              "number": Json(line.number),
-              "text": Json(line.text),
-            })
-          }),
-        ),
-      })
+  let windows = self.file_windows.map(fw => {
+    Json::object({
+      "source": Json(fw.source),
+      "targets": Json(fw.window.targets),
+      "lines": Json::array(
+        fw.window.lines.map(line => {
+          Json::object({ "number": Json(line.number), "text": Json(line.text) })
+        }),
+      ),
     })
+  })
   Json::object({
     "selected_signature": match self.selected_signature {
       Some(s) => Json(s)
@@ -169,7 +194,13 @@ pub fn ReportResult::to_json(self : ReportResult) -> Json {
     ),
     "schema_version": Json(1),
     "engine_version": Json("0.1.0"),
-    "source": Json(self.source),
+    "source": match self.sources.length() {
+      1 => Json(self.sources[0])
+      _ => Json::null()
+    },
+    "sources": Json::array(self.sources.map(s => Json(s))),
+    "sampling": Json(self.sampling.label()),
+    "scans": Json(self.scans),
     "config": Json::object({
       "bucket_minutes": Json(c.bucket_minutes),
       "baseline_buckets": Json(c.baseline_buckets),
@@ -206,8 +237,8 @@ pub fn ReportResult::to_json(self : ReportResult) -> Json {
         a.counts.get_or_default("FATAL", 0),
       ),
       "spike_count": Json(a.spikes.length()),
-      "sampled_targets": Json(self.contexts.sampled()),
-      "omitted_targets": Json(self.contexts.omitted()),
+      "sampled_targets": Json(self.sampled),
+      "omitted_targets": Json(self.omitted),
       "omitted_global_signature_occurrences": Json(a.overflow_signatures),
     }),
     "level_counts": Json::object(counts),

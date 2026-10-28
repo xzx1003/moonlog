@@ -441,6 +441,150 @@ class CLI(unittest.TestCase):
         self.run_cli('analyze', self.root, '--report', self.report, ok=False)
         self.assertFalse(self.report.exists())
 
+    def test_multifile_analyze_matches_single_concatenated_input(self):
+        # Split the fixture across two files at a spike boundary; the merged
+        # statistics must equal a single concatenated file.
+        lines = (ROOT / 'fixtures/incident.log').read_text().splitlines(True)
+        first = self.root / 'old.log'
+        second = self.root / 'app.log'
+        first.write_text(''.join(lines[:23]), encoding='utf8')
+        second.write_text(''.join(lines[23:]), encoding='utf8')
+        merged = self.root / 'merged.log'
+        merged.write_text(''.join(lines), encoding='utf8')
+
+        multi_report = self.root / 'multi.md'
+        self.run_cli('analyze', first, second, '--report', multi_report)
+        multi = multi_report.read_text()
+
+        single_report = self.root / 'single.md'
+        self.run_cli('analyze', merged, '--report', single_report)
+        single = single_report.read_text()
+
+        for needle in ('- Lines scanned: 30\n', '- Detected spikes: 1\n',
+                       '| 2026-10-28 08:30:00Z | 2026-10-28 08:35:00Z | 4 |',
+                       '| ERROR: database timeout retry=\\# | 4 |',
+                       '| ERROR | 4 |', '| INFO | 26 |'):
+            self.assertIn(needle, multi)
+            self.assertIn(needle, single)
+        # Both report the same aggregate counts; only the source listing differs.
+        self.assertIn('- Sources: ', multi)
+        self.assertIn('- Source: ', single)
+
+    def test_multifile_context_windows_carry_source_and_local_lines(self):
+        lines = (ROOT / 'fixtures/incident.log').read_text().splitlines(True)
+        first = self.root / 'old.log'
+        second = self.root / 'app.log'
+        first.write_text(''.join(lines[:23]), encoding='utf8')
+        second.write_text(''.join(lines[23:]), encoding='utf8')
+        self.run_cli('analyze', first, second, '--report', self.report,
+                     '--context', '2')
+        report = self.report.read_text()
+        # Windows never merge across the file boundary; two windows, each named.
+        self.assertIn('### Window 1', report)
+        self.assertIn('### Window 2', report)
+        self.assertIn('Source: ', report)
+        # The second file's target line numbers restart at 1 within the file.
+        self.assertIn('> 1: 2026-10-28 08:31:00 [ERROR] database timeout retry=2', report)
+
+    def test_multifile_sampling_first_and_distributed_are_deterministic(self):
+        lines = (ROOT / 'fixtures/incident.log').read_text().splitlines(True)
+        first = self.root / 'old.log'
+        second = self.root / 'app.log'
+        first.write_text(''.join(lines[:23]), encoding='utf8')
+        second.write_text(''.join(lines[23:]), encoding='utf8')
+        for mode in ('first', 'distributed'):
+            report_a = self.root / f'{mode}-a.md'
+            report_b = self.root / f'{mode}-b.md'
+            self.run_cli('analyze', first, second, '--report', report_a,
+                         '--sampling', mode)
+            self.run_cli('analyze', first, second, '--report', report_b,
+                         '--sampling', mode)
+            self.assertEqual(report_a.read_text(), report_b.read_text())
+            self.assertIn(f'- Sampling mode: {mode}; scans: 3', report_a.read_text())
+
+    def test_multifile_distributed_sampling_shared_budget(self):
+        # Four targets across two files; a limit of 2 distributed should select
+        # the endpoints (first and last target) regardless of file boundaries.
+        first = self.root / 'a.log'
+        second = self.root / 'b.log'
+        first.write_text(
+            '2026-10-28 08:00:00 [INFO] healthy\n'
+            '2026-10-28 08:05:00 [ERROR] e1\n'
+            '2026-10-28 08:05:00 [ERROR] e2\n',
+            encoding='utf8',
+        )
+        second.write_text(
+            '2026-10-28 08:05:00 [ERROR] e3\n'
+            '2026-10-28 08:05:00 [ERROR] e4\n',
+            encoding='utf8',
+        )
+        self.run_cli('analyze', first, second, '--report', self.report,
+                     '--sampling', 'distributed', '--max-samples', '2',
+                     '--baseline-buckets', '1', '--min-errors', '2',
+                     '--context', '0')
+        report = self.report.read_text()
+        self.assertIn('- Context targets sampled: 2 (limit 2); omitted: 2', report)
+        json_path = self.root / 'dist.json'
+        self.run_cli('analyze', first, second, '--report', json_path,
+                     '--format', 'json', '--sampling', 'distributed',
+                     '--max-samples', '2', '--baseline-buckets', '1',
+                     '--min-errors', '2', '--context', '0')
+        doc = json.loads(json_path.read_text())
+        self.assertEqual(doc['sampling'], 'distributed')
+        self.assertEqual(doc['scans'], 3)
+        self.assertEqual(doc['summary']['sampled_targets'], 2)
+        self.assertEqual(doc['summary']['omitted_targets'], 2)
+        # Every window carries a source field that matches one of the inputs.
+        for window in doc['context_windows']:
+            self.assertIn(window['source'], [str(first), str(second)])
+
+    def test_multifile_rejects_duplicate_and_aliased_inputs(self):
+        self.source.write_text('2026-10-28 08:00:00 [INFO] ready\n')
+        # Duplicate path.
+        self.run_cli('analyze', self.source, self.source, '--report', self.report,
+                     ok=False)
+        self.assertFalse(self.report.exists())
+        # Hard-link alias.
+        hard = self.root / 'hard.log'
+        os.link(self.source, hard)
+        self.run_cli('analyze', self.source, hard, '--report', self.report, ok=False)
+        self.assertFalse(self.report.exists())
+        # Symbolic-link alias.
+        soft = self.root / 'soft.log'
+        soft.symlink_to(self.source)
+        self.run_cli('analyze', self.source, soft, '--report', self.report, ok=False)
+        self.assertFalse(self.report.exists())
+
+    def test_sampling_flag_validation(self):
+        self.source.write_text('2026-10-28 08:00:00 [INFO] ready\n')
+        for args, expected in [
+            (('--sampling', 'oops'), 'unknown sampling mode: oops'),
+            (('--sampling',), 'missing value for --sampling'),
+            (('--sampling', 'first', '--sampling', 'distributed'),
+             'duplicate option: --sampling'),
+        ]:
+            with self.subTest(args=args):
+                result = self.analyze(*args, ok=False)
+                self.assertIn(expected, result.stderr)
+                self.assertFalse(self.report.exists())
+
+    def test_empty_input_file_in_multifile_does_not_cross_boundaries(self):
+        first = self.root / 'empty.log'
+        second = self.root / 'real.log'
+        first.write_text('', encoding='utf8')
+        second.write_text(
+            '2026-10-28 08:00:00 [INFO] before\n'
+            '2026-10-28 08:05:00 [ERROR] boom\n',
+            encoding='utf8',
+        )
+        self.run_cli('analyze', first, second, '--report', self.report,
+                     '--context-mode', 'errors', '--context', '1')
+        report = self.report.read_text()
+        self.assertIn('- Lines scanned: 2\n', report)
+        self.assertIn('Source: ', report)
+        # The empty file contributes no window; the target is line 2 of second.
+        self.assertIn('Target source lines: 2.', report)
+
     def test_filters_apply_to_report_and_context(self):
         self.source.write_bytes((ROOT / 'fixtures/incident.log').read_bytes())
         self.analyze('--level', 'INFO', '--keyword', 'health')

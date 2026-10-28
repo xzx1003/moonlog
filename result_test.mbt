@@ -24,12 +24,19 @@ fn completed_result(
     }
     contexts.feed(raw, analysis.is_target(raw, mode~, signature~))
   }
+  let windows = contexts
+    .windows()
+    .map(w => {
+      ({ source: "中文\"\\\n.log", window: w, } : @cli.FileContextWindow)
+    })
   @cli.ReportResult::new(
     analysis,
-    contexts,
+    windows,
+    contexts.sampled(),
+    contexts.omitted(),
     signatures,
     mode,
-    "中文\"\\\n.log",
+    ["中文\"\\\n.log"],
     selected_signature=signature,
     signature_comparisons=match comparison {
       Some(collector) => collector.comparisons()

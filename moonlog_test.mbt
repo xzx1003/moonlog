@@ -420,21 +420,28 @@ test "report is deterministic and raw backticks cannot close context fences" {
   for _ in 0..<3 {
     ignore(spike_signatures.feed("2026-10-28 08:05:00 [ERROR] `<script>|` 123"))
   }
+  let windows = contexts
+    .windows()
+    .map(w => ({ source: "file[1].log", window: w, } : @cli.FileContextWindow))
   let first = @cli.markdown_report(
     analysis,
-    contexts,
+    windows,
+    contexts.sampled(),
+    contexts.omitted(),
     spike_signatures,
     @cli.ContextMode::Spikes,
-    "file[1].log",
+    ["file[1].log"],
   )
   assert_eq(
     first,
     @cli.markdown_report(
       analysis,
-      contexts,
+      windows,
+      contexts.sampled(),
+      contexts.omitted(),
       spike_signatures,
       @cli.ContextMode::Spikes,
-      "file[1].log",
+      ["file[1].log"],
     ),
   )
   assert_true(first.contains("````text"))

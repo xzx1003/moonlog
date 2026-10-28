@@ -18,6 +18,10 @@ extern "C" fn read_chunk(file : Handle, buffer : Bytes, size : Int32) -> Int32 =
 extern "C" fn write_chunk(file : Handle, bytes : Bytes, size : Int32) -> Int32 = "moonlog_write"
 
 ///|
+#borrow(path)
+extern "C" fn stat_file(path : Bytes) -> Bytes = "moonlog_stat"
+
+///|
 extern "C" fn close(file : Handle) -> Int32 = "moonlog_close"
 
 ///|
@@ -48,6 +52,19 @@ fn c_path(path : String) -> Bytes raise {
 fn io_error(action : String, path : String) -> Unit raise {
   let detail = @utf8.decode_lossy(error_bytes())
   fail("\{action} '\{path}': \{detail}")
+}
+
+///|
+pub fn stat_identity(path : String) -> String raise {
+  let raw = stat_file(c_path(path))
+  if raw.length() == 0 {
+    let detail = @utf8.decode_lossy(error_bytes())
+    if detail != "" {
+      fail("cannot stat input '\{path}': \{detail}")
+    }
+    fail("not a regular file '\{path}'")
+  }
+  @utf8.decode_lossy(raw)
 }
 
 ///|

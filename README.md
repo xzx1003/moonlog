@@ -16,6 +16,8 @@ make build
 ./bin/moonlog analyze fixtures/incident.log --report incident.json --format json
 ./bin/moonlog analyze fixtures/incident.log --report incident-signature.md \
   --signature 'ERROR: database timeout retry=#'
+./bin/moonlog analyze old.log app.log --report incident.md
+./bin/moonlog analyze old.log app.log --report incident.md --sampling distributed
 ./bin/moonlog --help
 ```
 
@@ -24,6 +26,7 @@ make build
 ```bash
 moonlog analyze app.log --report incident.md
 moonlog analyze app.log --report incident.json --format json
+moonlog analyze old.log app.log --report incident.md
 ```
 
 默认情况下，MoonLog 不会联网。输入日志、分析过程和生成的报告均保留在本机。为避免意外覆盖数据，已有报告文件不会被覆盖；每次分析请指定新的输出文件名。
@@ -84,6 +87,16 @@ moonlog analyze app.log --report incident.json --format json
 - 尖峰前窗口可能包含更早的事故，它只是参考区间，不能当作「健康窗口」。基线次数为零时频率倍数没有定义，报告显示 `N/A`，并同时给出两侧的次数与频率。
 - 该参数不影响尖峰检测、尖峰排名、错误占比和原有的过滤统计；未指定时不创建比较收集器，报告也不出现该小节。
 
+**多文件输入与采样**
+
+`analyze` 接受一个或多个输入文件，位置参数（不以 `--` 开头）依次是输入文件，其后才是选项。多个文件喂入同一个 `Analyzer`，时间桶与尖峰检测在所有文件上统一进行，不按文件分别检测再拼接结果。文件的先后顺序只影响采样顺序和受容量限制时的签名保留顺序，不影响时间统计。
+
+- 输入文件按传入顺序处理，工具不会对文件排序，也不会自动搜索或展开目录。重叠的轮转日志可能被重复计数，工具不去重日志内容。
+- 输入身份使用 POSIX `stat` 的设备号与 inode 判定，重复路径、软链接别名、硬链接别名都会被拒绝，而不是靠字符串比较或日志内容去重。
+- 采样限额在所有文件之间共享。按输入文件顺序、文件内行序给匹配目标编号后，`first` 取前若干个，`distributed` 均匀选择目标序号并包含两端（只有一个名额时取中间目标）。它不是按时间均匀，也不保证每个文件或每个尖峰都有样本；未选中的目标仍可作为其他样本的相邻行出现。
+- 每个上下文窗口都带所属文件 `source` 与文件内行号，行号在每个文件内重新从 1 开始；上下文不会跨文件合并。
+- 报告区分「样本目标遗漏」（`--max-samples` 达到上限后未采样的目标）与「签名容量遗漏」（`--max-signatures` 达到上限后未保留的签名出现次数）。
+
 **报告内容**
 
 Markdown 报告包含本次分析使用的参数与过滤条件（含上下文模式）、日志计数、尖峰区间、每个尖峰内独立的错误签名排名（最多前 10 项）、全局错误签名排名、全范围/各尖峰/各观察时间桶的日志错误占比，以及对应的原始日志上下文。
@@ -138,6 +151,7 @@ JSON 记录中的时间戳直接从 `ts` 字段读取，无需在 JSON 对象外
 |---|---|
 | `--report` | 必填，报告输出路径，已存在的文件不会被覆盖 |
 | `--format` | 报告格式：`markdown`（默认）或 `json` |
+| `--sampling` | 采样方式：`first`（默认）或 `distributed` |
 | `--bucket-minutes` | 时间桶长度，默认 5 分钟 |
 | `--baseline-buckets` | 滑动基线使用的历史桶数，默认 6 |
 | `--multiplier` | 尖峰检测倍数，默认 3 |
@@ -290,7 +304,10 @@ JSON 报告由核心的 `ReportResult::json_report()` 生成，文件内容整�
 |---|---|
 | `schema_version` | 当前为 `1`，结构不兼容变化时递增 |
 | `engine_version` | 生成报告的 MoonLog 版本 |
-| `source` | 输入路径，按用户传入原样保留 |
+| `source` | 单文件输入路径，按用户传入原样保留；多文件时为 `null` |
+| `sources` | 输入文件路径数组，按传入顺序；单文件时为单元素数组 |
+| `sampling` | 采样方式：`first` 或 `distributed` |
+| `scans` | 实际执行的扫描遍数（单文件默认 2，多文件或 `distributed` 为 3） |
 | `config` | 本次分析的核心配置，含上下文模式 |
 | `filter` | 级别、关键词与时间边界，时间边界为包含端点 |
 | `selected_signature` | 本次指定的完整签名；未指定时为 `null`，且不参与任何统计 |
@@ -303,7 +320,7 @@ JSON 报告由核心的 `ReportResult::json_report()` 生成，文件内容整�
 | `observation_buckets` | 观察口径：每个时间桶的起止（结束不含）与 `log_error_ratio`，不受级别/关键词过滤影响 |
 | `spikes` | 尖峰区间、错误数、单桶峰值、起始基线、该区间的 `log_error_ratio`，以及该尖峰内**全部已保留**签名和容量遗漏数 |
 | `signatures` | 全局错误签名排名，同样为全部已保留项 |
-| `context_windows` | 采样到的上下文窗口：目标行号与被采集的原始行 |
+| `context_windows` | 采样到的上下文窗口：每个窗口含所属 `source`、目标行号与被采集的原始行（`number` 为文件内行号） |
 | `diagnostic_note` | 结论边界说明，提醒尖峰不代表根因 |
 
 `log_error_ratio` 对象三个字段的含义：
@@ -360,14 +377,15 @@ Markdown report written to incident.md.
 
 ## 流式处理与资源限制
 
-MoonLog 使用两遍扫描完成分析，避免将全部原始日志长期保存在内存中。
+MoonLog 使用多遍扫描完成分析，避免将全部原始日志长期保存在内存中。单个输入文件默认使用两遍；多个文件或 `--sampling distributed` 使用三遍。
 
-1. **首次扫描：** 以 64 KiB 为单位读取文件，在 MoonBit 中按物理行切分，解析记录并累计统计数据。
+1. **首次扫描：** 以 64 KiB 为单位读取每个文件，在 MoonBit 中按物理行切分，解析记录并累计统计数据。所有文件喂入同一个分析器，时间桶与尖峰统一。
 2. **尖峰分析：** 整理时间桶、补齐空桶，计算滑动基线并识别连续尖峰区间。
-3. **再次扫描：** 使用固定容量的 Ring Buffer 采集目标行及其前后文，并合并重叠或相邻的上下文窗口；指定 `--signature` 时同时为一个比较收集器逐行累计各尖峰两侧的次数。
-4. **生成报告：** 由同一次分析结果生成 Markdown 或 JSON 报告并写入文件，随后在终端打印摘要。
+3. **再次扫描：** 统计每个尖峰的签名、选定签名的对比窗口，以及匹配目标的出现总数；同时用固定容量的 Ring Buffer 采集目标行及其前后文，并合并重叠或相邻的上下文窗口。
+4. **（可选）第三次扫描：** 多文件或 `distributed` 采样时，按采样计划提取带来源标识的多文件上下文窗口。
+5. **生成报告：** 由同一次分析结果生成 Markdown 或 JSON 报告并写入文件，随后在终端打印摘要。
 
-两遍扫描会比较行数和滚动摘要，用于发现常见的文件变化。该检查不提供密码学完整性保证，因此建议分析稳定的日志副本。当前不支持实时追加日志。
+每个文件在每一遍扫描中都会校验自身的行数与滚动摘要，而不是只比较所有文件的合计值。该检查不提供密码学完整性保证，因此建议分析稳定的日志副本。当前不支持实时追加日志。
 
 为限制资源占用，程序对输入和统计数据设置了以下默认上限：
 
@@ -423,7 +441,9 @@ python3 scripts/benchmark.py --lines 500000
 - `--format` 的未知取值、重复传参和缺少取值，以及 JSON 报告的文件保护；
 - 终端摘要对 ESC、换行、回车、制表符以及含控制字符的输入路径的转义；
 - 日志错误占比：`--level ERROR` 与关键词过滤不缩小分母、`--from`/`--to` 生效、空桶显示 N/A 且 JSON 为 `null`、OTHER 行计入分母、无时间戳行不计入，以及 Markdown、终端、JSON 三处数值一致；
-- 指定签名：空值/重复/缺值报错、完整签名与级别前缀的精确匹配、`errors` 模式下的邻行保留、窗口左闭右开与时间边界、不同窗口时长、零基线显示 N/A、`--signature` 不改变原有统计，以及 Markdown、终端、JSON 的对比数值一致。
+- 指定签名：空值/重复/缺值报错、完整签名与级别前缀的精确匹配、`errors` 模式下的邻行保留、窗口左闭右开与时间边界、不同窗口时长、零基线显示 N/A、`--signature` 不改变原有统计，以及 Markdown、终端、JSON 的对比数值一致；
+- 多文件：多文件合并统计与单文件合并输入一致、乱序文件与空文件不串上下文、跨文件边界不合并窗口、全局样本限额、`first`/`distributed` 的确定性选择、重复/软硬链接输入拒绝、无目标与零名额、签名筛选，以及 JSON/Markdown/终端三处来源一致；
+- 文件变化检测：每一遍扫描逐文件校验行数与摘要，变化时不生成报告。
 
 一次本机基准测试的结果如下：
 
@@ -449,11 +469,12 @@ parser.mbt            日志解析、日期与时区处理、错误签名
 aggregate.mbt         流式统计、空桶补齐、滑动基线与尖峰检测
 error_ratio.mbt       日志错误占比：观察桶、区间聚合与 JSON 表示
 context.mbt           Ring Buffer、上下文窗口合并与采样限制
+input_sampling.mbt    多文件采样计划与带来源的上下文收集器
 signature_comparison.mbt  选定签名的基线/尖峰窗口计数与 JSON 表示
 report.mbt            Markdown 报告生成
 result.mbt            报告结果视图：JSON 导出、终端摘要数据
-cmd/main/             CLI 参数解析、两遍扫描编排、报告分发与终端摘要渲染
-nativeio/             MoonBit 流式读取与 C 字节 I/O 封装
+cmd/main/             CLI 参数解析、多遍扫描编排、报告分发与终端摘要渲染
+nativeio/             MoonBit 流式读取与 C 字节 I/O 封装、输入身份校验
 moonlog_test.mbt      MoonBit 核心断言
 fixtures/             可复现的故障日志样例
 scripts/              CLI 集成测试与合成数据基准
@@ -465,7 +486,6 @@ scripts/              CLI 集成测试与合成数据基准
 
 - **WASM 版本：** 复用现有核心逻辑，替换原生 I/O 宿主；目前尚未验证 WASM 兼容性。
 - **实时日志分析：** 支持持续读取新增日志，并处理时间桶更新和持续性尖峰。
-- **多文件分析：** 合并多个日志文件，处理跨文件排序和统计。
 - **更多日志格式：** 根据实际应用场景增加解析规则，避免引入难以预测的通用解析行为。
 - **可选的 Web 界面：** 为不习惯命令行的使用者提供报告查看与分析入口。
 - **更丰富的故障分析：** 在统计证据的基础上探索其他分析方法。当前版本不包含 AI 根因判断或告警推送。

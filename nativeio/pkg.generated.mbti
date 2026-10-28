@@ -6,6 +6,8 @@ pub fn each_line(String, (String) -> Unit raise, max_line_bytes? : Int32) -> Uni
 
 pub fn exit(Int32) -> Unit
 
+pub fn stat_identity(String) -> String raise
+
 pub fn stderr(String) -> Unit
 
 pub fn write_report(String, String) -> Unit raise

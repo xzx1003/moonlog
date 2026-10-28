@@ -129,9 +129,16 @@ fn terminal_summary(
   fn line(text : String) -> Unit {
     lines.push(text)
   }
-  line("Source: \{terminal_escape(summary.source)}")
+  if summary.sources.length() == 1 {
+    line("Source: \{terminal_escape(summary.source)}")
+  } else {
+    line("Sources: \{summary.sources.map(s => terminal_escape(s)).join(", ")}")
+  }
   line(
     "Scanned \{summary.total} lines; matched \{summary.matched}; untimed \{summary.untimed}; errors \{summary.errors}; spikes \{summary.spikes.length()}.",
+  )
+  line(
+    "Sampling: \{summary.sampling.label()} (limit \{summary.sample_limit}); scans \{summary.scans}.",
   )
   line(
     "Log error ratio (all observed lines): \{@engine.format_ratio(summary.log_error_ratio)} (\{summary.log_error_ratio.errors}/\{summary.log_error_ratio.total}).",

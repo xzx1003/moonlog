@@ -18,7 +18,7 @@ pub fn format_ratio(LogErrorRatio) -> String
 
 pub fn format_time(Int64) -> String
 
-pub fn markdown_report(Analysis, ContextCollector, SpikeSignatureCollector, ContextMode, String, selected_signature? : String?, signature_comparisons? : Array[SignatureComparison]) -> String
+pub fn markdown_report(Analysis, Array[FileContextWindow], Int32, Int32, SpikeSignatureCollector, ContextMode, Array[String], sampling? : SamplingMode, scans? : Int32, selected_signature? : String?, signature_comparisons? : Array[SignatureComparison]) -> String
 
 pub fn parse_level(String) -> Level
 
@@ -119,6 +119,11 @@ pub(all) struct ContextWindow {
   mut end_line : Int32
 }
 
+pub(all) struct FileContextWindow {
+  source : String
+  window : ContextWindow
+}
+
 pub(all) struct Filter {
   level : Level?
   keyword : String
@@ -154,6 +159,22 @@ pub(all) struct LogErrorRatio {
 }
 pub fn LogErrorRatio::to_json(Self) -> Json
 
+pub struct MultiFileContextCollector {
+  config : Config
+  plan : SamplingPlan
+  completed : Array[FileContextWindow]
+  mut current : ContextCollector?
+  mut source : String
+  mut seen_targets : Int64
+  mut selected : Int32
+}
+pub fn MultiFileContextCollector::begin_file(Self, String) -> Unit
+pub fn MultiFileContextCollector::feed(Self, String, Bool) -> Unit raise
+pub fn MultiFileContextCollector::finish(Self) -> Array[FileContextWindow] raise
+pub fn MultiFileContextCollector::new(Config, SamplingPlan) -> Self raise
+pub fn MultiFileContextCollector::omitted(Self) -> Int64
+pub fn MultiFileContextCollector::sampled(Self) -> Int32
+
 pub(all) struct Record {
   minute : Int64?
   level : Level
@@ -168,15 +189,20 @@ pub fn Record::to_repr(Self) -> @debug.Repr
 
 pub struct ReportResult {
   analysis : Analysis
-  contexts : ContextCollector
+  file_windows : Array[FileContextWindow]
+  sampled : Int32
+  omitted : Int32
   spike_signatures : SpikeSignatureCollector
   context_mode : ContextMode
-  source : String
+  sources : Array[String]
+  sampling : SamplingMode
+  scans : Int32
+  sample_limit : Int32
   selected_signature : String?
   signature_comparisons : Array[SignatureComparison]
 }
 pub fn ReportResult::json_report(Self) -> String
-pub fn ReportResult::new(Analysis, ContextCollector, SpikeSignatureCollector, ContextMode, String, selected_signature? : String?, signature_comparisons? : Array[SignatureComparison]) -> Self
+pub fn ReportResult::new(Analysis, Array[FileContextWindow], Int32, Int32, SpikeSignatureCollector, ContextMode, Array[String], sampling? : SamplingMode, scans? : Int32, sample_limit? : Int32, selected_signature? : String?, signature_comparisons? : Array[SignatureComparison]) -> Self
 pub fn ReportResult::summary(Self) -> TerminalSummary
 pub fn ReportResult::to_json(Self) -> Json
 
@@ -188,6 +214,19 @@ pub struct RingBuffer {
 pub fn RingBuffer::new(Int32) -> Self
 pub fn RingBuffer::push(Self, SourceLine) -> Unit
 pub fn RingBuffer::snapshot(Self) -> Array[SourceLine]
+
+pub(all) enum SamplingMode {
+  First
+  Distributed
+}
+pub fn SamplingMode::label(Self) -> String
+
+pub struct SamplingPlan {
+  total : Int64
+  ranks : Array[Int64]
+}
+pub fn SamplingPlan::new(Int64, Int32, SamplingMode) -> Self raise
+pub fn SamplingPlan::ranks(Self) -> Array[Int64]
 
 pub(all) struct Signature {
   text : String
@@ -266,6 +305,10 @@ pub(all) struct SpikeSummary {
 pub(all) struct TerminalSummary {
   log_error_ratio : LogErrorRatio
   source : String
+  sources : Array[String]
+  sampling : SamplingMode
+  scans : Int32
+  sample_limit : Int32
   total : Int32
   matched : Int32
   untimed : Int32

@@ -198,10 +198,12 @@ test "report shows the selection, escapes it and states a zero baseline" {
   }
   let report = @cli.markdown_report(
     analysis.finish(),
-    @cli.ContextCollector::new(config),
+    [],
+    0,
+    0,
     @cli.SpikeSignatureCollector::new(analysis.finish()),
     @cli.ContextMode::Spikes,
-    "input.log",
+    ["input.log"],
     selected_signature=Some(signature),
     signature_comparisons=result.signature_comparisons,
   )
@@ -230,10 +232,12 @@ test "report shows the selection, escapes it and states a zero baseline" {
   )
   let plain = @cli.markdown_report(
     analysis.finish(),
-    @cli.ContextCollector::new(config),
+    [],
+    0,
+    0,
     @cli.SpikeSignatureCollector::new(analysis.finish()),
     @cli.ContextMode::Spikes,
-    "input.log",
+    ["input.log"],
   )
   assert_false(plain.contains("## Selected signature comparison"))
 }
@@ -251,12 +255,17 @@ test "spikeless selection explains the absence without denying failures" {
   let analysis = @cli.Analyzer::new(config)
   analysis.feed("2026-10-28 08:00:00 [ERROR] other 1")
   let contexts = @cli.ContextCollector::new(config)
+  let windows = contexts
+    .windows()
+    .map(w => ({ source: "input.log", window: w, } : @cli.FileContextWindow))
   let report = @cli.markdown_report(
     analysis.finish(),
-    contexts,
+    windows,
+    contexts.sampled(),
+    contexts.omitted(),
     @cli.SpikeSignatureCollector::new(analysis.finish()),
     @cli.ContextMode::Errors,
-    "input.log",
+    ["input.log"],
     selected_signature=Some("ERROR: sig #"),
     signature_comparisons=result.signature_comparisons,
   )

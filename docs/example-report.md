@@ -13,6 +13,7 @@ Deterministic log evidence; spike detection does not establish a root cause.
 - Log error ratio (all observed lines, before level/keyword filters): 13.3% (4 of 30 time-valid lines)
 - Detected spikes: 1
 - Context targets sampled: 4 (limit 20); omitted: 0
+- Sampling mode: first; scans: 2
 - Untracked signature occurrences after capacity limit: 0
 - Bucket coverage (end exclusive): 2026-10-28 08:00:00Z to 2026-10-28 08:40:00Z
 
@@ -126,6 +127,8 @@ Targets are ERROR + FATAL records inside detected spikes. Context lines are phys
 Targets are further restricted to the exact signature `ERROR: database timeout retry=\#`; context lines stay unfiltered.
 
 ### Window 1
+
+Source: fixtures/incident.log
 
 Target source lines: 23, 24, 25, 26. `>` marks sampled targets.
 

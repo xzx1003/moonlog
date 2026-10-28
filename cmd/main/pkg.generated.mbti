@@ -6,6 +6,7 @@ package "moonlog/cli/cmd/main"
 // Errors
 
 // Types and methods
+type FileSnapshot
 
 // Type aliases
 
