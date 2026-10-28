@@ -22,6 +22,10 @@ extern "C" fn write_chunk(file : Handle, bytes : Bytes, size : Int32) -> Int32 =
 extern "C" fn stat_file(path : Bytes) -> Bytes = "moonlog_stat"
 
 ///|
+#borrow(a, b)
+extern "C" fn same_file_ffi(a : Bytes, b : Bytes) -> Int32 = "moonlog_same_file"
+
+///|
 extern "C" fn close(file : Handle) -> Int32 = "moonlog_close"
 
 ///|
@@ -52,6 +56,31 @@ fn c_path(path : String) -> Bytes raise {
 fn io_error(action : String, path : String) -> Unit raise {
   let detail = @utf8.decode_lossy(error_bytes())
   fail("\{action} '\{path}': \{detail}")
+}
+
+///|
+pub fn same_file(a : String, b : String) -> Bool raise {
+  same_file_ffi(c_path(a), c_path(b)) != 0
+}
+
+///|
+pub fn path_exists(path : String) -> Bool raise {
+  let identity = stat_file(c_path(path))
+  identity.length() != 0
+}
+
+///|
+pub fn ensure_distinct_output(
+  output : String,
+  inputs : Array[String],
+) -> Unit raise {
+  if path_exists(output) {
+    for input in inputs {
+      if same_file(output, input) {
+        fail("report path aliases an input file: \{output}")
+      }
+    }
+  }
 }
 
 ///|

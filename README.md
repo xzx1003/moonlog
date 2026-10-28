@@ -495,3 +495,54 @@ scripts/              CLI 集成测试与合成数据基准
 ## 许可证
 
 MoonLog 使用 Apache-2.0 许可证，详见 [`LICENSE`](LICENSE)。
+
+## 配置文件
+
+仅在显式传入 `--config` 时读取 JSON，不自动搜索当前目录或用户目录。
+覆盖顺序是：内置默认值 → 配置文件 → 命令行。同一命令行选项仍不可重复。
+
+```bash
+moonlog analyze app.log --config config/moonlog.example.json --report incident.md
+moonlog analyze app.log --config config/moonlog.example.json --context 3 --report incident.json --format json
+```
+
+完整示例见 [`config/moonlog.example.json`](config/moonlog.example.json)。键名使用 CLI 长选项去掉 `--` 的形式。
+允许的数值键：`bucket-minutes`、`baseline-buckets`、`multiplier`、`min-errors`、`context`、`max-samples`、`max-buckets`、`max-signatures`、`max-line-bytes`；范围与命令行一致。
+允许的字符串键：`format`、`sampling`、`context-mode`。
+未知键、重复键、错误类型及越界值会报错，即使该值被 CLI 覆盖也必须合法。
+输入文件、报告路径、过滤条件均须在命令行指定，配置不能改变数据读写目标。
+配置文本限制为 64 KiB（按读取后的字符计），单行仍受默认 65,536 字节读取限制。
+
+## 安装包与发布流程
+
+在 GitHub Actions 手动运行 **Release packages** 工作流，分别构建 Linux x86_64（Ubuntu 24.04）和 macOS arm64（macos-14）。
+每个平台执行检查、单元测试、CLI 集成测试，再生成 `.tar.gz` 与对应 `.sha256`，并对解压后的程序执行冒烟测试。
+构建产物可从该次工作流的 Artifacts 下载；工作流不会自动创建正式 GitHub Release。
+当前工作流使用安装时最新 MoonBit 工具链，日志保留工具链版本；不承诺跨工具链的逐字节可复现构建。
+Linux 包依赖系统 libc，未承诺兼容早于 Ubuntu 24.04 的发行版；macOS 包未签名、未公证。
+
+本机也可打包（需要 Python 3）：
+
+```bash
+make build
+python3 scripts/package_release.py
+```
+
+包内包含可执行文件、许可证、README 与示例配置。包名自动取 `moon.mod` 版本和本机平台；已有包不会覆盖。
+下载后先在包所在目录核对校验和，再解压安装（将文件名替换为实际包名）：
+
+```bash
+# macOS
+shasum -a 256 -c moonlog-v0.1.0-macos-arm64.tar.gz.sha256
+# Linux
+sha256sum -c moonlog-v0.1.0-linux-x86_64.tar.gz.sha256
+# 示例：macOS
+tar -xzf moonlog-v0.1.0-macos-arm64.tar.gz
+mkdir -p "$HOME/.local/bin"
+install -m 755 moonlog-v0.1.0-macos-arm64/moonlog "$HOME/.local/bin/moonlog"
+export PATH="$HOME/.local/bin:$PATH"
+moonlog --version
+```
+
+正式发布时，将已通过测试的两个归档及其校验文件附到相应版本的 GitHub Release。
+SHA-256 用于检查下载内容是否一致，不替代发布者签名。当前未创建版本标签或正式 Release。

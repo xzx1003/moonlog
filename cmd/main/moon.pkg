@@ -2,6 +2,7 @@ import {
   "moonlog/cli" @engine,
   "moonlog/cli/nativeio" @io,
   "moonbitlang/core/env",
+  "moonbitlang/core/json",
   "moonbitlang/core/string",
 }
 

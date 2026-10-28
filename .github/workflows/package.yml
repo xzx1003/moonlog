@@ -1,0 +1,36 @@
+name: Release packages
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install MoonBit
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+      - run: moon version --all
+      - run: make check
+      - run: make test
+      - run: make integration
+      - run: python3 scripts/package_release.py
+      - name: Smoke-test archive
+        shell: bash
+        run: |
+          (cd dist && if command -v sha256sum >/dev/null; then sha256sum -c ./*.sha256; else shasum -a 256 -c ./*.sha256; fi)
+          mkdir unpacked
+          tar -xzf dist/*.tar.gz -C unpacked
+          unpacked/*/moonlog --version
+          unpacked/*/moonlog analyze fixtures/incident.log --report packaged.json --format json
+          python3 -c 'import json; assert json.load(open("packaged.json"))["summary"]["errors"] == 4'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: moonlog-${{ runner.os }}-${{ runner.arch }}
+          path: dist/*
+          if-no-files-found: error

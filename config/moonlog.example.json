@@ -1,0 +1,14 @@
+{
+  "bucket-minutes": 5,
+  "baseline-buckets": 6,
+  "multiplier": 3,
+  "min-errors": 3,
+  "context": 10,
+  "context-mode": "spikes",
+  "sampling": "first",
+  "max-samples": 20,
+  "max-buckets": 100000,
+  "max-signatures": 1000,
+  "max-line-bytes": 65536,
+  "format": "markdown"
+}

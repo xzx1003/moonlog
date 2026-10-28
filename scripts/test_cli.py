@@ -441,6 +441,64 @@ class CLI(unittest.TestCase):
         self.run_cli('analyze', self.root, '--report', self.report, ok=False)
         self.assertFalse(self.report.exists())
 
+
+    def test_explicit_config_defaults_and_cli_precedence(self):
+        self.source.write_text((ROOT / 'fixtures/incident.log').read_text(), encoding='utf8')
+        config = self.root / 'moonlog.json'
+        config.write_text(json.dumps({
+            'bucket-minutes': 10, 'baseline-buckets': 2, 'multiplier': 2,
+            'min-errors': 2, 'context': 1, 'context-mode': 'errors',
+            'max-samples': 1, 'format': 'json',
+        }), encoding='utf8')
+        self.run_cli('analyze', self.source, '--config', config, '--report', self.report)
+        doc = json.loads(self.report.read_text())
+        self.assertEqual(doc['config']['bucket_minutes'], 10)
+        self.assertEqual(doc['config']['baseline_buckets'], 2)
+        self.assertEqual(doc['config']['context_mode'], 'errors')
+        self.assertEqual(doc['summary']['sampled_targets'], 1)
+        self.assertEqual(doc['scans'], 2)
+        self.report.unlink()
+        self.run_cli('analyze', self.source, '--config', config, '--report', self.report,
+                     '--bucket-minutes', '5', '--format', 'markdown')
+        text = self.report.read_text()
+        self.assertIn('- Bucket size: 5 minutes', text)
+        self.assertIn('- Context mode: errors', text)
+
+    def test_config_is_explicit_unique_strict_and_cannot_contain_paths(self):
+        self.source.write_text('2026-10-28 08:00:00 [INFO] ready\n', encoding='utf8')
+        config = self.root / 'moonlog.json'
+        cases = [
+            ('{"bucket-minutes": 5, "bucket-minutes": 10}', 'unique keys'),
+            ('{"input": "private.log"}', 'unknown or forbidden config key'),
+            ('{"report": "out.md"}', 'unknown or forbidden config key'),
+            ('{"bucket-minutes": 0}', 'must be 1..1440'),
+            ('{"format": 3}', 'must be a string'),
+            ('[]', 'config must be a JSON object'),
+            ('not json', 'config must be a JSON object'),
+        ]
+        for raw, expected in cases:
+            with self.subTest(raw=raw):
+                config.write_text(raw, encoding='utf8')
+                result = self.analyze('--config', config, ok=False)
+                self.assertIn(expected, result.stderr)
+                self.assertFalse(self.report.exists())
+        config.write_text('{}', encoding='utf8')
+        result = self.run_cli('analyze', self.source, '--config', config, '--config', config,
+                              '--report', self.report, ok=False)
+        self.assertIn('duplicate option: --config', result.stderr)
+        self.assertFalse(self.report.exists())
+
+    def test_config_flag_inside_keyword_is_a_literal_value(self):
+        self.source.write_text('2026-10-28 08:00:00 [ERROR] --config\n', encoding='utf8')
+        self.analyze('--keyword', '--config', '--format', 'json')
+        self.assertEqual(json.loads(self.report.read_text())['summary']['matched'], 1)
+
+    def test_config_can_be_omitted_and_default_behavior_is_unchanged(self):
+        self.source.write_text('2026-10-28 08:00:00 [INFO] ready\n', encoding='utf8')
+        result = self.analyze()
+        self.assertIn('Markdown report written', result.stdout)
+        self.assertIn('- Bucket size: 5 minutes', self.report.read_text())
+
     def test_multifile_analyze_matches_single_concatenated_input(self):
         # Split the fixture across two files at a spike boundary; the merged
         # statistics must equal a single concatenated file.

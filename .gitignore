@@ -8,3 +8,4 @@ target
 
 # Local analysis output; curated examples live in docs/.
 /incident.md
+/dist/

@@ -4,6 +4,7 @@ const Usage : String =
   #|
   #|Usage: moonlog analyze <input.log> [<input2.log> ...] --report <incident.md> [options]
   #|
+  #|  --config PATH        Explicit JSON defaults; CLI options override
   #|  --format FORMAT      Report format: markdown or json (default markdown)
   #|  --sampling MODE      Target selection: first or distributed (default first)
   #|  --bucket-minutes N   Time bucket width (default 5)
@@ -233,6 +234,7 @@ fn run(args : Array[String]) -> Unit raise {
   if from is Some(a) && to is Some(b) && a > b {
     fail("--from must not be after --to")
   }
+  @io.ensure_distinct_output(report, sources)
   // Reject duplicate paths and hard/symbolic-link aliases using POSIX device
   // number and inode, never string comparison of paths or log content.
   let identities : Map[String, Bool] = Map([])
@@ -395,8 +397,13 @@ fn failure_message(message : String) -> String {
 }
 
 ///|
+fn run_with_config() -> Unit raise {
+  run(config_args(@env.args()))
+}
+
+///|
 fn main {
-  run(@env.args()) catch {
+  run_with_config() catch {
     Failure(message) => {
       @io.stderr("moonlog: \{terminal_escape(failure_message(message))}")
       @io.exit(1)

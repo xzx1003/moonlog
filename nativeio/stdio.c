@@ -31,6 +31,15 @@ MOONBIT_FFI_EXPORT int moonlog_close(FILE *f) { return fclose(f); }
  * duplicate paths and hard/symbolic link aliases without string comparison of
  * the path text or log content. Returns an empty bytes object on failure with
  * errno set; callers check the length first. */
+
+MOONBIT_FFI_EXPORT int moonlog_same_file(moonbit_bytes_t a, moonbit_bytes_t b) {
+  struct stat sa, sb;
+  if (stat((const char *)a, &sa) != 0 || stat((const char *)b, &sb) != 0) {
+    return 0;
+  }
+  return sa.st_dev == sb.st_dev && sa.st_ino == sb.st_ino;
+}
+
 MOONBIT_FFI_EXPORT moonbit_bytes_t moonlog_stat(moonbit_bytes_t path) {
   struct stat st;
   if (stat((const char *)path, &st) != 0) {
