@@ -13,6 +13,7 @@ MoonLog 是一个使用 MoonBit 编写的命令行工具，用于分析应用日
 ```bash
 make build
 ./bin/moonlog analyze fixtures/incident.log --report incident.md
+./bin/moonlog analyze fixtures/incident.log --report incident.json --format json
 ./bin/moonlog --help
 ```
 
@@ -20,6 +21,7 @@ make build
 
 ```bash
 moonlog analyze app.log --report incident.md
+moonlog analyze app.log --report incident.json --format json
 ```
 
 默认情况下，MoonLog 不会联网。输入日志、分析过程和生成的报告均保留在本机。为避免意外覆盖数据，已有报告文件不会被覆盖；每次分析请指定新的输出文件名。
@@ -64,6 +66,8 @@ Markdown 报告包含本次分析使用的参数与过滤条件（含上下文�
 
 报告中的时间、统计结果和上下文均来自本地输入文件，不依赖外部服务。
 
+除 Markdown 外，`--format json` 可输出结构化报告，字段说明见下文「报告格式」一节。两种格式都在报告成功写入后打印同一份终端摘要。
+
 ## 日志格式与时间处理
 
 普通文本日志示例：
@@ -103,6 +107,8 @@ JSON 记录中的时间戳直接从 `ts` 字段读取，无需在 JSON 对象外
 
 | 参数 | 作用 |
 |---|---|
+| `--report` | 必填，报告输出路径，已存在的文件不会被覆盖 |
+| `--format` | 报告格式：`markdown`（默认）或 `json` |
 | `--bucket-minutes` | 时间桶长度，默认 5 分钟 |
 | `--baseline-buckets` | 滑动基线使用的历史桶数，默认 6 |
 | `--multiplier` | 尖峰检测倍数，默认 3 |
@@ -120,6 +126,144 @@ JSON 记录中的时间戳直接从 `ts` 字段读取，无需在 JSON 对象外
 
 `errors` 模式下，未指定 `--from` 或 `--to` 时，没有有效时间戳的 ERROR/FATAL 记录也可成为上下文目标；设置任一时间边界后，这些记录会被排除。`--context-mode` 不影响尖峰检测、尖峰区间或尖峰内签名排名。
 
+## 报告格式
+
+`--format` 只决定写入文件的序列化方式；两种格式使用同一次分析的结果，扫描次数和统计规则完全相同。报告文件仍然不可覆盖，已存在的路径会直接报错。
+
+```bash
+# 默认 Markdown
+./bin/moonlog analyze fixtures/incident.log --report incident.md
+
+# 结构化 JSON
+./bin/moonlog analyze fixtures/incident.log --report incident.json --format json
+```
+
+`--format` 只接受 `markdown` 和 `json`。未知取值、重复传入以及缺少取值都会报错，且不会创建报告文件。
+
+### Markdown
+
+Markdown 报告包含本次分析的参数与过滤条件（含上下文模式）、日志计数、尖峰区间、每个尖峰内独立的签名排名（最多前 10 项）、全局签名排名和原始上下文，结构见 [`docs/example-report.md`](docs/example-report.md)。
+
+### JSON
+
+JSON 报告由核心的 `ReportResult::json_report()` 生成，文件内容整体是一份合法的 JSON 文档。终端摘要只写到标准输出，不会混入文件，因此可以直接交给 `jq`、Python 的 `json.loads` 或其他工具处理。
+
+```json
+{
+  "schema_version": 1,
+  "engine_version": "0.1.0",
+  "source": "fixtures/incident.log",
+  "config": {
+    "bucket_minutes": 5,
+    "baseline_buckets": 6,
+    "multiplier": 3,
+    "min_errors": 3,
+    "context": 10,
+    "context_mode": "spikes",
+    "max_samples": 20,
+    "max_buckets": 100000,
+    "max_signatures": 1000
+  },
+  "filter": {
+    "level": null,
+    "keyword": "",
+    "from_inclusive": null,
+    "to_inclusive": null
+  },
+  "time_semantics": "UTC; seconds floored to minutes; filters inclusive; spike ends exclusive",
+  "summary": {
+    "total": 30,
+    "matched": 30,
+    "untimed": 0,
+    "errors": 4,
+    "spike_count": 1,
+    "sampled_targets": 4,
+    "omitted_targets": 0,
+    "omitted_global_signature_occurrences": 0
+  },
+  "level_counts": { "DEBUG": 0, "INFO": 26, "WARN": 0, "ERROR": 4, "FATAL": 0, "OTHER": 0 },
+  "buckets": [
+    {
+      "start": "2026-10-28 08:30:00Z",
+      "end_exclusive": "2026-10-28 08:35:00Z",
+      "total": 5,
+      "errors": 4
+    }
+  ],
+  "spikes": [
+    {
+      "start": "2026-10-28 08:30:00Z",
+      "end_exclusive": "2026-10-28 08:35:00Z",
+      "errors": 4,
+      "peak_errors": 4,
+      "baseline": 0,
+      "signatures": [
+        { "text": "ERROR: database timeout retry=#", "count": 4 }
+      ],
+      "omitted_signature_occurrences": 0
+    }
+  ],
+  "signatures": [ { "text": "ERROR: database timeout retry=#", "count": 4 } ],
+  "context_windows": [
+    {
+      "targets": [23, 24, 25, 26],
+      "lines": [
+        { "number": 22, "text": "2026-10-28 08:29:00 [INFO] health check ok" },
+        { "number": 23, "text": "2026-10-28 08:30:00 [ERROR] database timeout retry=1" }
+      ]
+    }
+  ],
+  "diagnostic_note": "Rule-based evidence; spikes do not establish a root cause. ..."
+}
+```
+
+示例为节选：`buckets`、`spikes`、`signatures` 和 `context_windows[].lines` 只保留了部分条目。
+
+字段说明：
+
+| 字段 | 说明 |
+|---|---|
+| `schema_version` | 当前为 `1`，结构不兼容变化时递增 |
+| `engine_version` | 生成报告的 MoonLog 版本 |
+| `source` | 输入路径，按用户传入原样保留 |
+| `config` | 本次分析的核心配置，含上下文模式 |
+| `filter` | 级别、关键词与时间边界，时间边界为包含端点 |
+| `time_semantics` | 时间语义：UTC、秒向下取整到分钟、过滤含端点、尖峰结束不含 |
+| `summary` | 总行数、匹配数、无有效时间戳数、ERROR+FATAL 数、尖峰数、上下文采样/遗漏数、全局签名遗漏数 |
+| `level_counts` | 六个级别的计数，键固定为 `DEBUG`/`INFO`/`WARN`/`ERROR`/`FATAL`/`OTHER` |
+| `buckets` | 每个时间桶的起止（结束不含）、总行数与错误数，空桶补零 |
+| `spikes` | 尖峰区间、错误数、单桶峰值、起始基线，以及该尖峰内**全部已保留**签名和容量遗漏数 |
+| `signatures` | 全局错误签名排名，同样为全部已保留项 |
+| `context_windows` | 采样到的上下文窗口：目标行号与被采集的原始行 |
+| `diagnostic_note` | 结论边界说明，提醒尖峰不代表根因 |
+
+使用 JSON 时需要注意：
+
+- 时间统一为 UTC 字符串；`end_exclusive` 按定义不包含在区间内，桶的 `end_exclusive` 是桶边界。
+- 数组顺序稳定（文件顺序、时间、排名），但 JSON 对象的键顺序不作为接口保证。
+- `spikes[].signatures` 和 `signatures` 输出全部已保留签名，不受终端摘要的 3 项、Markdown 表格的 10 项展示限制；容量遗漏由 `omitted_signature_occurrences` 和 `omitted_global_signature_occurrences` 单独记录。
+- `context_windows[].lines` 保存**未经过滤的原始上下文行**，`source`、签名等字段也保留输入原文。这些内容可能含业务数据或凭据，分享前请自行检查。
+- `config` 只覆盖核心 `result.config` 中的字段。`--max-line-bytes` 是宿主读取参数，在进入分析前生效，不在 `result.config` 中，因此 JSON 里没有它；JSON 不代表所有 CLI 参数都已导出。
+
+### 终端摘要
+
+两种格式都会在报告成功写入后向标准输出打印同一份摘要；写入失败（例如目标文件已存在）时不打印，也不会有残留输出。
+
+```text
+Source: fixtures/incident.log
+Scanned 30 lines; matched 30; untimed 0; errors 4; spikes 1.
+Spike 1: 2026-10-28 08:30:00Z to 2026-10-28 08:35:00Z (end exclusive); errors 4.
+  Top signatures (1): ERROR: database timeout retry=# (4)
+Context mode: spikes; sampled 4; omitted 0.
+Markdown report written to incident.md.
+```
+
+摘要包含扫描数、匹配数、错误数、尖峰数，每个尖峰的区间（结束不含）、错误数和前 3 类签名及次数，上下文模式与采样/遗漏数，以及签名容量遗漏提示。
+
+- 每个尖峰最多展示 3 项签名。保留项超过 3 项时会明确说明其余项只是显示截断，不是容量遗漏；完整排名在 JSON 中。
+- 没有任何尖峰时，摘要只说明规则未命中，不代表服务正常。
+- 签名文本、输入路径和报告路径来自用户输入，打印前会转义换行、回车、制表符、ESC 等控制字符（如 `\x1b`、`\n`、`\t`），避免日志内容伪造终端输出或触发转义序列。JSON 文件保留原文，不做这种展示转义。
+
 ## 流式处理与资源限制
 
 MoonLog 使用两遍扫描完成分析，避免将全部原始日志长期保存在内存中。
@@ -127,7 +271,7 @@ MoonLog 使用两遍扫描完成分析，避免将全部原始日志长期保存
 1. **首次扫描：** 以 64 KiB 为单位读取文件，在 MoonBit 中按物理行切分，解析记录并累计统计数据。
 2. **尖峰分析：** 整理时间桶、补齐空桶，计算滑动基线并识别连续尖峰区间。
 3. **再次扫描：** 使用固定容量的 Ring Buffer 采集目标行及其前后文，并合并重叠或相邻的上下文窗口。
-4. **生成报告：** 将统计结果、尖峰信息和日志片段写入 Markdown 文件。
+4. **生成报告：** 由同一次分析结果生成 Markdown 或 JSON 报告并写入文件，随后在终端打印摘要。
 
 两遍扫描会比较行数和滚动摘要，用于发现常见的文件变化。该检查不提供密码学完整性保证，因此建议分析稳定的日志副本。当前不支持实时追加日志。
 
@@ -177,7 +321,13 @@ python3 scripts/benchmark.py --lines 500000
 - 上下文模式的无尖峰错误上下文、过滤与时间边界、默认兼容和非法参数；
 - 中文 JSON Lines、跨 64 KiB 读取块的 UTF-8、BOM、CRLF 和无换行末行；
 - 空输入、非法参数、超长行、无效 UTF-8、目录或缺失输入；
-- 已存在的报告文件，以及输入文件的软链接和硬链接保护。
+- 已存在的报告文件，以及输入文件的软链接和硬链接保护；
+- 默认 Markdown 与显式 `--format markdown` 产出完全一致；
+- JSON 报告可被 Python `json.loads` 解析，`schema_version`、时间桶、上下文和遗漏计数完整；
+- 两种格式的统计值与终端摘要一致，JSON 文件与终端摘要互不混入；
+- 空输入、`errors` 模式、签名容量遗漏在 JSON 与终端摘要中的表现；
+- `--format` 的未知取值、重复传参和缺少取值，以及 JSON 报告的文件保护；
+- 终端摘要对 ESC、换行、回车、制表符以及含控制字符的输入路径的转义。
 
 一次本机基准测试的结果如下：
 
@@ -203,7 +353,8 @@ parser.mbt            日志解析、日期与时区处理、错误签名
 aggregate.mbt         流式统计、空桶补齐、滑动基线与尖峰检测
 context.mbt           Ring Buffer、上下文窗口合并与采样限制
 report.mbt            Markdown 报告生成
-cmd/main/             CLI 参数解析与两遍扫描编排
+result.mbt            报告结果视图：JSON 导出、终端摘要数据
+cmd/main/             CLI 参数解析、两遍扫描编排、报告分发与终端摘要渲染
 nativeio/             MoonBit 流式读取与 C 字节 I/O 封装
 moonlog_test.mbt      MoonBit 核心断言
 fixtures/             可复现的故障日志样例

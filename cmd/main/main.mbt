@@ -4,6 +4,7 @@ const Usage : String =
   #|
   #|Usage: moonlog analyze <input.log> --report <incident.md> [options]
   #|
+  #|  --format FORMAT      Report format: markdown or json (default markdown)
   #|  --bucket-minutes N   Time bucket width (default 5)
   #|  --baseline-buckets N Previous buckets in baseline (default 6)
   #|  --multiplier N       Strict spike multiplier (default 3)
@@ -22,6 +23,11 @@ const Usage : String =
   #|
   #|Input must be a stable, regular UTF-8 file; it is scanned twice.
   #|Existing report files are never overwritten. No network or AI calls.
+  #|
+  #|Both formats write the file first, then print a terminal summary on stdout.
+  #|Only the file holds the report; the JSON file is valid JSON alone.
+  #|JSON keeps raw context lines. --max-line-bytes is a host read limit and is
+  #|not part of the core result config, so JSON config is not every CLI option.
 
 ///|
 fn positive_or_zero(value : String, flag : String) -> Int32 raise {
@@ -69,6 +75,7 @@ fn run(args : Array[String]) -> Unit raise {
   }
   let source = args[2]
   let mut report = ""
+  let mut format = "markdown"
   let mut bucket_minutes = 5
   let mut baseline_buckets = 6
   let mut multiplier = 3
@@ -101,6 +108,12 @@ fn run(args : Array[String]) -> Unit raise {
     let value = args[i + 1]
     match flag {
       "--report" => report = value
+      "--format" =>
+        match value {
+          "markdown" => format = "markdown"
+          "json" => format = "json"
+          _ => fail("unknown format: \{value}; expected markdown or json")
+        }
       "--bucket-minutes" => bucket_minutes = positive_or_zero(value, flag)
       "--baseline-buckets" => baseline_buckets = positive_or_zero(value, flag)
       "--multiplier" => multiplier = positive_or_zero(value, flag)
@@ -178,16 +191,19 @@ fn run(args : Array[String]) -> Unit raise {
   if first_digest != second_digest || second_lines != analysis.total {
     fail("input changed between passes; analyze a stable snapshot instead")
   }
-  @io.write_report(
-    report,
+  let result = @engine.ReportResult::new(
+    analysis, contexts, spike_signatures, context_mode, source,
+  )
+  let content = if format == "json" {
+    result.json_report()
+  } else {
     @engine.markdown_report(
       analysis, contexts, spike_signatures, context_mode, source,
-    ),
-  )
-  println(
-    "Scanned \{analysis.total} lines; matched \{analysis.matched}; spikes \{analysis.spikes.length()}; sampled targets \{contexts.sampled()}; omitted targets \{contexts.omitted()}.",
-  )
-  println("Markdown report written successfully.")
+    )
+  }
+  @io.write_report(report, content)
+  let label = if format == "json" { "JSON" } else { "Markdown" }
+  println(terminal_summary(result.summary(), label, report))
 }
 
 ///|
@@ -202,11 +218,11 @@ fn failure_message(message : String) -> String {
 fn main {
   run(@env.args()) catch {
     Failure(message) => {
-      @io.stderr("moonlog: \{failure_message(message)}")
+      @io.stderr("moonlog: \{terminal_escape(failure_message(message))}")
       @io.exit(1)
     }
     error => {
-      @io.stderr("moonlog: \{error}")
+      @io.stderr("moonlog: \{terminal_escape("\{error}")}")
       @io.exit(1)
     }
   }

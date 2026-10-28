@@ -149,6 +149,18 @@ pub fn Record::not_equal(Self, Self) -> Bool
 #deprecated
 pub fn Record::to_repr(Self) -> @debug.Repr
 
+pub struct ReportResult {
+  analysis : Analysis
+  contexts : ContextCollector
+  spike_signatures : SpikeSignatureCollector
+  context_mode : ContextMode
+  source : String
+}
+pub fn ReportResult::json_report(Self) -> String
+pub fn ReportResult::new(Analysis, ContextCollector, SpikeSignatureCollector, ContextMode, String) -> Self
+pub fn ReportResult::summary(Self) -> TerminalSummary
+pub fn ReportResult::to_json(Self) -> Json
+
 pub struct RingBuffer {
   capacity : Int32
   slots : Array[SourceLine]
@@ -196,6 +208,28 @@ pub fn SpikeSignatureCollector::feed(Self, String) -> Bool
 pub fn SpikeSignatureCollector::new(Analysis) -> Self
 pub fn SpikeSignatureCollector::omitted(Self, Int32) -> Int32
 pub fn SpikeSignatureCollector::signatures(Self, Int32) -> Array[Signature]
+
+pub(all) struct SpikeSummary {
+  start : String
+  end_exclusive : String
+  errors : Int32
+  top_signatures : Array[Signature]
+  retained_signature_count : Int32
+  omitted_signature_occurrences : Int32
+}
+
+pub(all) struct TerminalSummary {
+  source : String
+  total : Int32
+  matched : Int32
+  untimed : Int32
+  errors : Int32
+  context_mode : ContextMode
+  sampled_targets : Int32
+  omitted_targets : Int32
+  omitted_global_signature_occurrences : Int32
+  spikes : Array[SpikeSummary]
+}
 
 // Type aliases
 

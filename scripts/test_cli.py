@@ -29,6 +29,17 @@ class CLI(unittest.TestCase):
     def analyze(self, *options, ok=True):
         return self.run_cli('analyze', self.source, '--report', self.report, *options, ok=ok)
 
+    def analyze_to(self, report, *options, ok=True):
+        return self.run_cli('analyze', self.source, '--report', report, *options, ok=ok)
+
+    def report_summary(self, stdout):
+        """Terminal summary without its last line, which names the format and path."""
+        lines = stdout.splitlines()
+        self.assertTrue(lines, 'terminal summary missing')
+        self.assertTrue(stdout.endswith('\n'))
+        self.assertFalse(stdout.endswith('\n\n'))
+        return lines[:-1]
+
     def spike_sections(self, report):
         block = report.split('## Error signatures by spike\n', 1)[1]
         block = block.split('## Top error signatures', 1)[0]
@@ -341,6 +352,248 @@ class CLI(unittest.TestCase):
         self.source.write_text('2026-10-28 08:00:00 [INFO] a\n2026-10-28 09:00:00 [INFO] b\n')
         self.assertIn('exceeds max buckets', self.analyze('--max-buckets', '2', ok=False).stderr)
         self.assertFalse(self.report.exists())
+
+    def test_help_documents_format_and_json_limits(self):
+        for args in [('--help',), ('analyze', '--help')]:
+            with self.subTest(args=args):
+                text = self.run_cli(*args).stdout
+                self.assertIn('--format FORMAT', text)
+                self.assertIn('markdown or json (default markdown)', text)
+                self.assertIn('JSON keeps raw context lines', text)
+                self.assertIn('not part of the core result config', text)
+
+    def test_default_format_is_markdown_and_matches_explicit_markdown(self):
+        self.source.write_bytes((ROOT / 'fixtures/incident.log').read_bytes())
+        default = self.analyze('--context', '2')
+        markdown = self.report.read_text()
+        self.assertIn('Markdown report written to', default.stdout)
+        self.report.unlink()
+        explicit = self.analyze('--format', 'markdown', '--context', '2')
+        self.assertEqual(markdown, self.report.read_text())
+        self.assertEqual(self.report_summary(default.stdout),
+                         self.report_summary(explicit.stdout))
+
+    def test_json_report_is_parseable_and_covers_schema_fields(self):
+        self.source.write_bytes((ROOT / 'fixtures/incident.log').read_bytes())
+        result = self.analyze('--format', 'json', '--context', '2')
+        text = self.report.read_text()
+        self.assertIn('JSON report written to', result.stdout)
+        self.assertTrue(text.startswith('{'), text[:40])
+        self.assertTrue(text.rstrip().endswith('}'))
+        document = json.loads(text)
+        self.assertEqual(document['schema_version'], 1)
+        self.assertEqual(document['engine_version'], '0.1.0')
+        self.assertEqual(document['source'], str(self.source))
+        self.assertIn('UTC', document['time_semantics'])
+        self.assertIn('unfiltered original lines', document['diagnostic_note'])
+        self.assertEqual(document['config']['context_mode'], 'spikes')
+        self.assertEqual(document['config']['max_signatures'], 1000)
+        self.assertNotIn('max_line_bytes', document['config'])
+        self.assertEqual(sorted(document['level_counts']),
+                         ['DEBUG', 'ERROR', 'FATAL', 'INFO', 'OTHER', 'WARN'])
+        self.assertEqual(document['filter']['keyword'], '')
+        self.assertIsNone(document['filter']['from_inclusive'])
+        summary = document['summary']
+        self.assertEqual(
+            (summary['total'], summary['matched'], summary['untimed'],
+             summary['errors'], summary['spike_count']), (30, 30, 0, 4, 1))
+        self.assertEqual(
+            (summary['sampled_targets'], summary['omitted_targets'],
+             summary['omitted_global_signature_occurrences']), (4, 0, 0))
+        bucket = document['buckets'][0]
+        self.assertEqual(sorted(bucket), ['end_exclusive', 'errors', 'start', 'total'])
+        spike = document['spikes'][0]
+        self.assertEqual(spike['start'], '2026-10-28 08:30:00Z')
+        self.assertEqual(spike['end_exclusive'], '2026-10-28 08:35:00Z')
+        self.assertEqual(spike['errors'], 4)
+        self.assertEqual(spike['signatures'],
+                         [{'text': 'ERROR: database timeout retry=#', 'count': 4}])
+        self.assertEqual(spike['omitted_signature_occurrences'], 0)
+        window = document['context_windows'][0]
+        self.assertEqual(window['targets'], [23, 24, 25, 26])
+        self.assertEqual(sorted(window['lines'][0]), ['number', 'text'])
+
+    def test_both_formats_report_identical_statistics(self):
+        self.source.write_bytes((ROOT / 'fixtures/incident.log').read_bytes())
+        json_path = self.root / 'report.json'
+        markdown_run = self.analyze('--context', '2')
+        markdown = self.report.read_text()
+        json_run = self.analyze_to(json_path, '--format', 'json', '--context', '2')
+        document = json.loads(json_path.read_text())
+        summary = document['summary']
+        for expected in [
+            f"- Lines scanned: {summary['total']}\n",
+            f"- Lines matching filters: {summary['matched']}\n",
+            f"- ERROR + FATAL: {summary['errors']}\n",
+            f"- Detected spikes: {summary['spike_count']}\n",
+            f"- Context targets sampled: {summary['sampled_targets']} (limit 20); "
+            f"omitted: {summary['omitted_targets']}\n",
+        ]:
+            self.assertIn(expected, markdown)
+        spike_rows = [line for line in markdown.splitlines() if line.startswith('| 2026-')]
+        self.assertEqual(len(spike_rows), summary['spike_count'])
+        for row, spike in zip(spike_rows, document['spikes']):
+            self.assertIn(spike['start'], row)
+            self.assertIn(spike['end_exclusive'], row)
+            self.assertIn(f"| {spike['errors']} |", row)
+        self.assertEqual(self.report_summary(markdown_run.stdout),
+                         self.report_summary(json_run.stdout))
+
+    def test_empty_input_in_both_formats(self):
+        self.source.write_bytes(b'')
+        self.analyze()
+        self.assertIn('- Lines scanned: 0\n', self.report.read_text())
+        self.report.unlink()
+        result = self.analyze('--format', 'json')
+        document = json.loads(self.report.read_text())
+        self.assertEqual(document['summary']['total'], 0)
+        for key in ['spikes', 'buckets', 'context_windows', 'signatures']:
+            self.assertEqual(document[key], [])
+        self.assertIn('No spikes met the rule; this does not imply the service was healthy.',
+                      result.stdout)
+
+    def test_json_errors_mode_samples_errors_without_spikes(self):
+        self.source.write_text(
+            '2026-10-28 08:00:00 [INFO] before\n'
+            '2026-10-28 08:01:00 [ERROR] failed\n'
+            'stack frame without timestamp\n'
+            '2026-10-28 08:02:00 [INFO] after\n',
+            encoding='utf8',
+        )
+        result = self.analyze('--format', 'json', '--context-mode', 'errors', '--context', '1')
+        document = json.loads(self.report.read_text())
+        self.assertEqual(document['config']['context_mode'], 'errors')
+        self.assertEqual(document['spikes'], [])
+        self.assertEqual(document['summary']['spike_count'], 0)
+        self.assertEqual(document['summary']['sampled_targets'], 1)
+        window = document['context_windows'][0]
+        self.assertEqual(window['targets'], [2])
+        self.assertEqual([line['number'] for line in window['lines']], [1, 2, 3])
+        self.assertEqual(window['lines'][2]['text'], 'stack frame without timestamp')
+        self.assertIn('Context mode: errors; sampled 1; omitted 0.', result.stdout)
+        self.assertIn('does not imply the service was healthy', result.stdout)
+
+    def test_json_reports_signature_capacity_omissions(self):
+        self.source.write_text(
+            '2026-10-28 08:00:00 [INFO] healthy\n'
+            '2026-10-28 08:05:00 [ERROR] alpha\n'
+            '2026-10-28 08:05:00 [ERROR] beta\n'
+            '2026-10-28 08:05:00 [ERROR] alpha\n'
+            '2026-10-28 08:10:00 [INFO] healthy\n'
+            '2026-10-28 08:15:00 [ERROR] alpha\n'
+            '2026-10-28 08:15:00 [ERROR] alpha\n'
+            '2026-10-28 08:15:00 [ERROR] alpha\n',
+            encoding='utf8',
+        )
+        result = self.analyze('--format', 'json', '--baseline-buckets', '1',
+                              '--multiplier', '2', '--min-errors', '2',
+                              '--max-signatures', '1', '--context', '0',
+                              '--max-samples', '0')
+        document = json.loads(self.report.read_text())
+        first, second = document['spikes']
+        self.assertEqual(first['signatures'], [{'text': 'ERROR: alpha', 'count': 2}])
+        self.assertEqual(first['omitted_signature_occurrences'], 1)
+        self.assertEqual(second['signatures'], [])
+        self.assertEqual(second['omitted_signature_occurrences'], 3)
+        self.assertEqual(second['errors'], 3)
+        self.assertIn('1 occurrence(s) were omitted after the shared signature capacity limit',
+                      result.stdout)
+        self.assertIn('No signature retained; all 3 error occurrence(s) were dropped',
+                      result.stdout)
+        self.assertIn('not error-free', result.stdout)
+
+    def test_terminal_shows_three_signatures_and_labels_display_limit(self):
+        lines = ['2026-10-28 08:00:00 [INFO] healthy']
+        lines += [f'2026-10-28 08:05:00 [ERROR] sig-{name}' for name in 'abcdefghijkl']
+        self.source.write_text('\n'.join(lines) + '\n', encoding='utf8')
+        result = self.analyze('--format', 'json', '--baseline-buckets', '1',
+                              '--min-errors', '2', '--context', '0', '--max-samples', '0')
+        document = json.loads(self.report.read_text())
+        self.assertEqual(len(document['spikes'][0]['signatures']), 12)
+        top = [line for line in self.report_summary(result.stdout)
+               if line.startswith('  Top signatures (3):')]
+        self.assertEqual(len(top), 1)
+        self.assertEqual(top[0].count(' (1)'), 3)
+        self.assertIn(
+            'Showing the top 3 of 12 retained signatures; the other 9 are hidden '
+            'by this display limit, not by capacity omissions.', result.stdout)
+
+    def test_invalid_or_missing_format_fails_before_writing(self):
+        self.source.write_text('2026-10-28 08:00:00 [INFO] ready\n', encoding='utf8')
+        cases = [
+            (('--format', 'xml'), 'unknown format: xml'),
+            (('--format', 'JSON'), 'unknown format: JSON'),
+            (('--format', ''), 'unknown format: '),
+            (('--format',), 'missing value for --format'),
+            (('--format', 'json', '--format', 'markdown'), 'duplicate option: --format'),
+        ]
+        for args, expected in cases:
+            with self.subTest(args=args):
+                result = self.analyze(*args, ok=False)
+                self.assertIn(expected, result.stderr)
+                self.assertFalse(self.report.exists())
+
+    def test_json_report_never_overwrites_existing_file(self):
+        self.source.write_text('2026-10-28 08:00:00 [INFO] ready\n', encoding='utf8')
+        self.report.write_text('KEEP', encoding='utf8')
+        result = self.analyze('--format', 'json', ok=False)
+        self.assertIn('existing files are never overwritten', result.stderr)
+        self.assertEqual(self.report.read_text(), 'KEEP')
+        self.assertEqual(result.stdout, '')
+
+    def test_terminal_summary_escapes_control_characters(self):
+        payload = 'pwn\u001b[2J\u001b]0;spoof\u0007'
+        self.source.write_text(
+            '2026-10-28 08:00:00 [INFO] healthy\n'
+            + f'2026-10-28 08:05:00 [ERROR] {payload}\n' * 3
+            + '2026-10-28 08:05:00 [ERROR] tab\there\rback\n',
+            encoding='utf8',
+        )
+        result = self.analyze('--format', 'json', '--baseline-buckets', '1',
+                              '--min-errors', '2', '--context', '0')
+        self.assertIn('pwn\\x1b[#J\\x1b]#;spoof\\x07 (3)', result.stdout)
+        self.assertIn('tab\\there\\rback', result.stdout)
+        for raw in ['\u001b', '\u0007', '\r']:
+            self.assertNotIn(raw, result.stdout)
+        self.assertEqual(
+            len([line for line in result.stdout.splitlines() if line.startswith('Spike 1:')]), 1)
+        # JSON keeps the original bytes instead of terminal escaping them.
+        texts = [s['text'] for s in json.loads(self.report.read_text())['spikes'][0]['signatures']]
+        self.assertTrue(any('\u001b' in text and '\u0007' in text for text in texts), texts)
+        self.assertFalse(any('\\x1b' in text for text in texts), texts)
+
+    def test_terminal_summary_escapes_source_path(self):
+        weird = self.root / 'in\u001b[31mput.log'
+        weird.write_text('2026-10-28 08:00:00 [INFO] ready\n', encoding='utf8')
+        report = self.root / 'out.md'
+        result = self.run_cli('analyze', weird, '--report', report)
+        self.assertIn('Source: ', result.stdout)
+        self.assertIn('in\\x1b[31mput.log', result.stdout)
+        self.assertNotIn('\u001b', result.stdout)
+        self.assertTrue(report.exists())
+
+    def test_diagnostics_never_emit_raw_control_characters(self):
+        self.source.write_text('2026-10-28 08:00:00 [INFO] ready\n', encoding='utf8')
+        result = self.analyze('--format', 'js\u001bon', ok=False)
+        self.assertIn('unknown format: js\\x1bon', result.stderr)
+        self.assertNotIn('\u001b', result.stderr)
+        missing = self.root / 'in\u001bput.log'
+        result = self.run_cli('analyze', missing, '--report', self.report, ok=False)
+        self.assertNotIn('\u001b', result.stderr)
+        self.assertIn('in\\x1bput.log', result.stderr)
+
+    def test_json_report_and_terminal_summary_do_not_mix(self):
+        self.source.write_bytes((ROOT / 'fixtures/incident.log').read_bytes())
+        result = self.analyze('--format', 'json', '--context', '2')
+        text = self.report.read_text()
+        document = json.loads(text)
+        self.assertEqual(document['summary']['total'], 30)
+        self.assertNotIn('Scanned ', text)
+        self.assertNotIn('report written to', text)
+        self.assertNotIn('schema_version', result.stdout)
+        self.assertFalse([line for line in result.stdout.splitlines() if line.startswith('{')])
+        self.assertIn('Spike 1: 2026-10-28 08:30:00Z to 2026-10-28 08:35:00Z (end exclusive); '
+                      'errors 4.', result.stdout)
 
 
 if __name__ == '__main__':
