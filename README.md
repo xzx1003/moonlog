@@ -44,7 +44,7 @@ moonlog analyze app.log --report incident.json --format json
 
 - 支持按日志级别、消息关键词和时间范围过滤。
 - 级别标签区分大小写。`DEBUG`、`INFO`、`WARN`、`ERROR`、`FATAL` 为可识别级别；其他标签（包括显式写出的 `OTHER`）归为 `OTHER`，也可用 `--level OTHER` 筛选这些记录。
-- 统计结果、错误聚合和尖峰检测使用同一组过滤条件。
+- 统计结果、错误聚合和尖峰检测使用同一组过滤条件；只有日志错误占比例外，它按过滤前的观察口径统计（见下文「日志错误占比」）。
 - 时间桶按 UTC 对齐，默认每桶 5 分钟；缺失的时间桶会补零，乱序记录按时间排序后参与统计。
 - 错误签名以级别前缀开头，仅将消息中的连续十进制数字替换为 `#`，不尝试推断根因。签名按出现次数排序。
 
@@ -58,9 +58,23 @@ moonlog analyze app.log --report incident.json --format json
 
 这套规则用于发现错误数量的异常变化，不能据此确定故障根因，也不能直接衡量错误率或实际影响范围。持续高错误量可能逐渐进入滑动基线，因此检测区间的结束时间也不代表服务已经恢复。
 
+**日志错误占比**
+
+日志错误占比衡量「时间有效的日志行里，ERROR/FATAL 占多大比例」，用于在尖峰检测之外提供一个覆盖整个观察范围的指标。
+
+- 分母是时间筛选范围内的全部时间有效物理行，包含 DEBUG/INFO/WARN 以及归为 `OTHER` 的记录；没有有效时间戳的行既不进分子也不进分母。
+- 分子是其中的 ERROR 与 FATAL 行。
+- `--from` / `--to` 会改变分子和分母；`--level` 和 `--keyword` 不会，因为口径在级别、关键词过滤之前统计。
+- 分母为零时显示 `N/A`（不是 `0%`）。
+- 报告给出三个范围：全范围、每个尖峰区间（桶边界，结束不含）以及每个观察时间桶。
+
+这个数字是日志行比例，不是请求失败率：一个请求可能产生多行日志，错误还会触发重试等额外日志；日志量骤降时占比反而可能升高。它不能替代基于请求数的失败率，也不代表服务健康。
+
 **报告内容**
 
-Markdown 报告包含本次分析使用的参数与过滤条件（含上下文模式）、日志计数、尖峰区间、每个尖峰内独立的错误签名排名（最多前 10 项）、全局错误签名排名，以及对应的原始日志上下文。
+Markdown 报告包含本次分析使用的参数与过滤条件（含上下文模式）、日志计数、尖峰区间、每个尖峰内独立的错误签名排名（最多前 10 项）、全局错误签名排名、全范围/各尖峰/各观察时间桶的日志错误占比，以及对应的原始日志上下文。
+
+过滤后的统计（级别计数、尖峰错误数、签名排名、上下文采样）与日志错误占比是两套口径：前者受 `--level`、`--keyword` 影响，后者不受影响。报告中分节呈现，并在占比小节内重复说明差异，避免把两者混读。
 
 尖峰内排名只统计该尖峰区间内、满足过滤条件的 ERROR/FATAL 记录，因此不会混入基线时段的噪声；不同尖峰分别排名。全局排名则覆盖所有匹配记录，不受尖峰区间限制。
 
@@ -142,7 +156,7 @@ JSON 记录中的时间戳直接从 `ts` 字段读取，无需在 JSON 对象外
 
 ### Markdown
 
-Markdown 报告包含本次分析的参数与过滤条件（含上下文模式）、日志计数、尖峰区间、每个尖峰内独立的签名排名（最多前 10 项）、全局签名排名和原始上下文，结构见 [`docs/example-report.md`](docs/example-report.md)。
+Markdown 报告包含本次分析的参数与过滤条件（含上下文模式）、日志计数、尖峰区间、每个尖峰内独立的签名排名（最多前 10 项）、全局签名排名、日志错误占比（全范围/各尖峰/各观察时间桶）和原始上下文，结构见 [`docs/example-report.md`](docs/example-report.md)。观察时间桶的表按前 50 个展示，超出时注明截断，完整数据在 JSON 中。
 
 ### JSON
 
@@ -171,7 +185,9 @@ JSON 报告由核心的 `ReportResult::json_report()` 生成，文件内容整�
     "to_inclusive": null
   },
   "time_semantics": "UTC; seconds floored to minutes; filters inclusive; spike ends exclusive",
+  "log_error_ratio_semantics": "Time-valid physical log lines within inclusive time filters; independent of level and keyword; ERROR/FATAL divided by all levels; fraction 0..1, null for zero denominator; not a request failure rate",
   "summary": {
+    "log_error_ratio": { "total": "30", "errors": "4", "fraction": 0.13333333333333333 },
     "total": 30,
     "matched": 30,
     "untimed": 0,
@@ -190,8 +206,16 @@ JSON 报告由核心的 `ReportResult::json_report()` 生成，文件内容整�
       "errors": 4
     }
   ],
+  "observation_buckets": [
+    {
+      "start": "2026-10-28 08:30:00Z",
+      "end_exclusive": "2026-10-28 08:35:00Z",
+      "log_error_ratio": { "total": "5", "errors": "4", "fraction": 0.8 }
+    }
+  ],
   "spikes": [
     {
+      "log_error_ratio": { "total": "5", "errors": "4", "fraction": 0.8 },
       "start": "2026-10-28 08:30:00Z",
       "end_exclusive": "2026-10-28 08:35:00Z",
       "errors": 4,
@@ -217,7 +241,7 @@ JSON 报告由核心的 `ReportResult::json_report()` 生成，文件内容整�
 }
 ```
 
-示例为节选：`buckets`、`spikes`、`signatures` 和 `context_windows[].lines` 只保留了部分条目。
+示例为节选：`buckets`、`observation_buckets`、`spikes`、`signatures` 和 `context_windows[].lines` 只保留了部分条目。
 
 字段说明：
 
@@ -229,19 +253,32 @@ JSON 报告由核心的 `ReportResult::json_report()` 生成，文件内容整�
 | `config` | 本次分析的核心配置，含上下文模式 |
 | `filter` | 级别、关键词与时间边界，时间边界为包含端点 |
 | `time_semantics` | 时间语义：UTC、秒向下取整到分钟、过滤含端点、尖峰结束不含 |
-| `summary` | 总行数、匹配数、无有效时间戳数、ERROR+FATAL 数、尖峰数、上下文采样/遗漏数、全局签名遗漏数 |
+| `log_error_ratio_semantics` | 日志错误占比的统计口径说明，随报告一起输出 |
+| `summary` | 总行数、匹配数、无有效时间戳数、ERROR+FATAL 数、尖峰数、上下文采样/遗漏数、全局签名遗漏数；另有全范围 `log_error_ratio` |
 | `level_counts` | 六个级别的计数，键固定为 `DEBUG`/`INFO`/`WARN`/`ERROR`/`FATAL`/`OTHER` |
-| `buckets` | 每个时间桶的起止（结束不含）、总行数与错误数，空桶补零 |
-| `spikes` | 尖峰区间、错误数、单桶峰值、起始基线，以及该尖峰内**全部已保留**签名和容量遗漏数 |
+| `buckets` | 过滤后统计：每个时间桶的起止（结束不含）、总行数与错误数，空桶补零 |
+| `observation_buckets` | 观察口径：每个时间桶的起止（结束不含）与 `log_error_ratio`，不受级别/关键词过滤影响 |
+| `spikes` | 尖峰区间、错误数、单桶峰值、起始基线、该区间的 `log_error_ratio`，以及该尖峰内**全部已保留**签名和容量遗漏数 |
 | `signatures` | 全局错误签名排名，同样为全部已保留项 |
 | `context_windows` | 采样到的上下文窗口：目标行号与被采集的原始行 |
 | `diagnostic_note` | 结论边界说明，提醒尖峰不代表根因 |
+
+`log_error_ratio` 对象三个字段的含义：
+
+| 键 | 类型 | 说明 |
+|---|---|---|
+| `total` | 十进制字符串（`Int64`） | 区间内的时间有效日志行数，即分母 |
+| `errors` | 十进制字符串（`Int64`） | 区间内的 ERROR + FATAL 行数，即分子 |
+| `fraction` | 数值或 `null` | `errors / total`，取值 0..1；分母为 0 时为 `null` |
+
+`total` 和 `errors` 是 64 位整数，JSON 中以十进制**字符串**输出以避免精度丢失，因此 `jq` 里需要 `tonumber` 或字符串比较；`fraction` 是普通数值。
 
 使用 JSON 时需要注意：
 
 - 时间统一为 UTC 字符串；`end_exclusive` 按定义不包含在区间内，桶的 `end_exclusive` 是桶边界。
 - 数组顺序稳定（文件顺序、时间、排名），但 JSON 对象的键顺序不作为接口保证。
 - `spikes[].signatures` 和 `signatures` 输出全部已保留签名，不受终端摘要的 3 项、Markdown 表格的 10 项展示限制；容量遗漏由 `omitted_signature_occurrences` 和 `omitted_global_signature_occurrences` 单独记录。
+- `buckets` 是过滤后的统计，`observation_buckets` 和所有 `log_error_ratio` 是过滤前的观察口径：`--level`、`--keyword` 只影响前者。
 - `context_windows[].lines` 保存**未经过滤的原始上下文行**，`source`、签名等字段也保留输入原文。这些内容可能含业务数据或凭据，分享前请自行检查。
 - `config` 只覆盖核心 `result.config` 中的字段。`--max-line-bytes` 是宿主读取参数，在进入分析前生效，不在 `result.config` 中，因此 JSON 里没有它；JSON 不代表所有 CLI 参数都已导出。
 
@@ -252,14 +289,19 @@ JSON 报告由核心的 `ReportResult::json_report()` 生成，文件内容整�
 ```text
 Source: fixtures/incident.log
 Scanned 30 lines; matched 30; untimed 0; errors 4; spikes 1.
+Log error ratio (all observed lines): 13.3% (4/30).
+Ratio scope: time-valid lines only, OTHER included; level/keyword filters do not apply; untimed lines are excluded; a log-line share, not a request failure rate.
 Spike 1: 2026-10-28 08:30:00Z to 2026-10-28 08:35:00Z (end exclusive); errors 4.
+  Log error ratio: 80.0% (4/5).
   Top signatures (1): ERROR: database timeout retry=# (4)
 Context mode: spikes; sampled 4; omitted 0.
 Markdown report written to incident.md.
 ```
 
-摘要包含扫描数、匹配数、错误数、尖峰数，每个尖峰的区间（结束不含）、错误数和前 3 类签名及次数，上下文模式与采样/遗漏数，以及签名容量遗漏提示。
+摘要包含扫描数、匹配数、错误数、尖峰数，全范围日志错误占比与每行的 `errors/total`，每个尖峰的区间（结束不含）、错误数、占比和前 3 类签名及次数，上下文模式与采样/遗漏数，以及签名容量遗漏提示。
 
+- 日志错误占比在分母为零时显示 `N/A`，并同时打印 `errors/total`，因此 `N/A` 与 `0.0%` 不会混淆。
+- 摘要里另起一行说明占比口径：只看时间有效行、先于级别/关键词过滤、不是请求失败率。尖峰行的 `errors` 是过滤后的错误数，占比括号里的两个数来自观察口径，两者在 `--level`/`--keyword` 生效时可能不同。
 - 每个尖峰最多展示 3 项签名。保留项超过 3 项时会明确说明其余项只是显示截断，不是容量遗漏；完整排名在 JSON 中。
 - 没有任何尖峰时，摘要只说明规则未命中，不代表服务正常。
 - 签名文本、输入路径和报告路径来自用户输入，打印前会转义换行、回车、制表符、ESC 等控制字符（如 `\x1b`、`\n`、`\t`），避免日志内容伪造终端输出或触发转义序列。JSON 文件保留原文，不做这种展示转义。
@@ -327,7 +369,8 @@ python3 scripts/benchmark.py --lines 500000
 - 两种格式的统计值与终端摘要一致，JSON 文件与终端摘要互不混入；
 - 空输入、`errors` 模式、签名容量遗漏在 JSON 与终端摘要中的表现；
 - `--format` 的未知取值、重复传参和缺少取值，以及 JSON 报告的文件保护；
-- 终端摘要对 ESC、换行、回车、制表符以及含控制字符的输入路径的转义。
+- 终端摘要对 ESC、换行、回车、制表符以及含控制字符的输入路径的转义；
+- 日志错误占比：`--level ERROR` 与关键词过滤不缩小分母、`--from`/`--to` 生效、空桶显示 N/A 且 JSON 为 `null`、OTHER 行计入分母、无时间戳行不计入，以及 Markdown、终端、JSON 三处数值一致。
 
 一次本机基准测试的结果如下：
 
@@ -351,6 +394,7 @@ moon.mod / moon.pkg   原生目标与核心包配置，无第三方依赖
 types.mbt             配置、记录、过滤器、桶与尖峰类型
 parser.mbt            日志解析、日期与时区处理、错误签名
 aggregate.mbt         流式统计、空桶补齐、滑动基线与尖峰检测
+error_ratio.mbt       日志错误占比：观察桶、区间聚合与 JSON 表示
 context.mbt           Ring Buffer、上下文窗口合并与采样限制
 report.mbt            Markdown 报告生成
 result.mbt            报告结果视图：JSON 导出、终端摘要数据

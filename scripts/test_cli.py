@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Black-box acceptance tests against the real native executable; stdlib only."""
 from pathlib import Path
+from decimal import Decimal
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -10,6 +12,18 @@ import unittest
 
 BINARY = Path(sys.argv.pop(1) if len(sys.argv) > 1 else 'bin/moonlog').resolve()
 ROOT = Path(__file__).resolve().parent.parent
+
+RATIO_LINE = re.compile(
+    r'^Log error ratio \(all observed lines\): (\S+) \((\d+)/(\d+)\)\.$')
+SPIKE_RATIO_LINE = re.compile(r'^  Log error ratio: (\S+) \((\d+)/(\d+)\)\.$')
+
+
+def percent(fraction):
+    """One-decimal display percentage, half-up, matching the CLI's format_ratio."""
+    if fraction is None:
+        return 'N/A'
+    tenths = int(Decimal(fraction) * 1000 + Decimal('0.5'))
+    return f'{tenths // 10}.{tenths % 10}%'
 
 
 class CLI(unittest.TestCase):
@@ -39,6 +53,36 @@ class CLI(unittest.TestCase):
         self.assertTrue(stdout.endswith('\n'))
         self.assertFalse(stdout.endswith('\n\n'))
         return lines[:-1]
+
+    def table_rows(self, report, heading):
+        block = report.split(heading + '\n', 1)[1].split('\n\n', 1)[0]
+        return [[cell.strip() for cell in row.strip('|').split('|')]
+                for row in block.splitlines() if row.startswith('|')][2:]
+
+    def markdown_total_ratio(self, report):
+        row = self.table_rows(report, '### All observed lines')[0]
+        return int(row[0]), int(row[1]), row[2]
+
+    def markdown_spike_ratios(self, report):
+        return [(int(row[0]), row[1], row[2], int(row[3]), int(row[4]), row[5])
+                for row in self.table_rows(report, '### By spike')]
+
+    def markdown_bucket_ratios(self, report):
+        return [(row[0], row[1], int(row[2]), int(row[3]), row[4])
+                for row in self.table_rows(report, '### By observation bucket')]
+
+    def terminal_ratio(self, stdout):
+        for line in stdout.splitlines():
+            if RATIO_LINE.match(line):
+                return int(RATIO_LINE.match(line).group(2)), \
+                    int(RATIO_LINE.match(line).group(3)), \
+                    RATIO_LINE.match(line).group(1)
+        self.fail(f'no overall ratio line in: {stdout}')
+
+    def terminal_spike_ratios(self, stdout):
+        return [(int(m.group(2)), int(m.group(3)), m.group(1))
+                for m in (SPIKE_RATIO_LINE.match(line) for line in stdout.splitlines())
+                if m]
 
     def spike_sections(self, report):
         block = report.split('## Error signatures by spike\n', 1)[1]
@@ -430,7 +474,8 @@ class CLI(unittest.TestCase):
             f"omitted: {summary['omitted_targets']}\n",
         ]:
             self.assertIn(expected, markdown)
-        spike_rows = [line for line in markdown.splitlines() if line.startswith('| 2026-')]
+        spike_block = markdown.split('## Detected spikes\n', 1)[1].split('\n## ', 1)[0]
+        spike_rows = [line for line in spike_block.splitlines() if line.startswith('| 2026-')]
         self.assertEqual(len(spike_rows), summary['spike_count'])
         for row, spike in zip(spike_rows, document['spikes']):
             self.assertIn(spike['start'], row)
@@ -594,6 +639,147 @@ class CLI(unittest.TestCase):
         self.assertFalse([line for line in result.stdout.splitlines() if line.startswith('{')])
         self.assertIn('Spike 1: 2026-10-28 08:30:00Z to 2026-10-28 08:35:00Z (end exclusive); '
                       'errors 4.', result.stdout)
+
+
+    def test_ratio_ignores_level_and_keyword_filters(self):
+        self.source.write_bytes((ROOT / 'fixtures/incident.log').read_bytes())
+        plain = self.analyze()
+        baseline = self.markdown_total_ratio(self.report.read_text())
+        self.assertEqual(baseline, (4, 30, '13.3%'))
+        self.assertEqual(self.terminal_ratio(plain.stdout), baseline)
+        self.report.unlink()
+
+        level_run = self.analyze('--level', 'ERROR')
+        report = self.report.read_text()
+        self.assertEqual(self.markdown_total_ratio(report), baseline)
+        self.assertEqual(self.terminal_ratio(level_run.stdout), baseline)
+        self.assertIn('- Lines matching filters: 4\n', report)
+        self.assertIn('| ERROR | 4 |', report)
+        self.report.unlink()
+
+        keyword_run = self.analyze('--keyword', 'health')
+        report = self.report.read_text()
+        self.assertEqual(self.markdown_total_ratio(report), baseline)
+        self.assertEqual(self.terminal_ratio(keyword_run.stdout), baseline)
+        self.assertIn('- Lines matching filters: 23\n', report)
+        self.assertIn('- ERROR + FATAL: 0\n', report)
+
+    def test_ratio_respects_time_filter(self):
+        self.source.write_bytes((ROOT / 'fixtures/incident.log').read_bytes())
+        json_path = self.root / 'report.json'
+        window = ('--from', '2026-10-28 08:30:00', '--to', '2026-10-28 08:34:00')
+        result = self.analyze(*window)
+        report = self.report.read_text()
+        self.assertEqual(self.markdown_total_ratio(report), (4, 5, '80.0%'))
+        self.assertEqual(self.terminal_ratio(result.stdout), (4, 5, '80.0%'))
+        self.assertEqual(self.markdown_bucket_ratios(report),
+                         [('2026-10-28 08:30:00Z', '2026-10-28 08:35:00Z', 4, 5, '80.0%')])
+        self.analyze_to(json_path, '--format', 'json', *window)
+        document = json.loads(json_path.read_text())
+        overall = document['summary']['log_error_ratio']
+        self.assertEqual((overall['errors'], overall['total']), ('4', '5'))
+        self.assertEqual(overall['fraction'], 0.8)
+        self.assertEqual(len(document['observation_buckets']), 1)
+        self.assertEqual(document['observation_buckets'][0]['log_error_ratio']['total'], '5')
+
+    def test_empty_bucket_ratio_is_na_and_json_null(self):
+        self.source.write_text(
+            '2026-10-28 08:00:00 [ERROR] boom\n'
+            '2026-10-28 08:20:00 [INFO] later\n',
+            encoding='utf8',
+        )
+        json_path = self.root / 'report.json'
+        result = self.analyze()
+        report = self.report.read_text()
+        self.assertEqual(self.markdown_total_ratio(report), (1, 2, '50.0%'))
+        self.assertEqual(self.terminal_ratio(result.stdout), (1, 2, '50.0%'))
+        self.assertEqual([row[4] for row in self.markdown_bucket_ratios(report)],
+                         ['100.0%', 'N/A', 'N/A', 'N/A', '0.0%'])
+        self.assertIn('An empty bucket contains no time-valid line', report)
+        self.analyze_to(json_path, '--format', 'json')
+        document = json.loads(json_path.read_text())
+        self.assertEqual([bucket['log_error_ratio']['fraction']
+                          for bucket in document['observation_buckets']],
+                         [1.0, None, None, None, 0.0])
+        self.assertEqual([bucket['log_error_ratio']['total']
+                          for bucket in document['observation_buckets']],
+                         ['1', '0', '0', '0', '1'])
+
+    def test_empty_input_ratio_is_na(self):
+        self.source.write_bytes(b'')
+        result = self.analyze()
+        self.assertEqual(self.markdown_total_ratio(self.report.read_text()), (0, 0, 'N/A'))
+        self.assertEqual(self.terminal_ratio(result.stdout), (0, 0, 'N/A'))
+        self.assertIn('No time-valid line was observed', self.report.read_text())
+
+    def test_ratio_counts_other_lines_and_excludes_untimed(self):
+        self.source.write_text(
+            '2026-10-28 08:00:00 [OTHER] unknown level\n'
+            '2026-10-28 08:00:00 [INFO] ok\n'
+            '2026-10-28 08:00:00 [ERROR] boom\n'
+            '{"ts":"bad","level":"ERROR","msg":"untimed"}\n'
+            'stack frame\n',
+            encoding='utf8',
+        )
+        result = self.analyze()
+        self.assertIn('Scanned 5 lines; matched 5; untimed 2', result.stdout)
+        self.assertEqual(self.markdown_total_ratio(self.report.read_text()), (1, 3, '33.3%'))
+        self.assertEqual(self.terminal_ratio(result.stdout), (1, 3, '33.3%'))
+
+    def test_ratio_matches_across_markdown_terminal_and_json(self):
+        self.source.write_bytes((ROOT / 'fixtures/incident.log').read_bytes())
+        json_path = self.root / 'report.json'
+        markdown_run = self.analyze()
+        markdown = self.report.read_text()
+        json_run = self.analyze_to(json_path, '--format', 'json')
+        document = json.loads(json_path.read_text())
+
+        overall = document['summary']['log_error_ratio']
+        expected = (int(overall['errors']), int(overall['total']), percent(overall['fraction']))
+        self.assertEqual(expected, (4, 30, '13.3%'))
+        self.assertEqual(self.markdown_total_ratio(markdown), expected)
+        self.assertEqual(self.terminal_ratio(markdown_run.stdout), expected)
+        self.assertEqual(self.terminal_ratio(json_run.stdout), expected)
+
+        spike_rows = self.markdown_spike_ratios(markdown)
+        terminal_spikes = self.terminal_spike_ratios(markdown_run.stdout)
+        self.assertEqual(len(spike_rows), len(document['spikes']))
+        self.assertEqual(len(terminal_spikes), len(document['spikes']))
+        for row, spike, terminal in zip(spike_rows, document['spikes'], terminal_spikes):
+            ratio = spike['log_error_ratio']
+            expected_spike = (int(ratio['errors']), int(ratio['total']),
+                              percent(ratio['fraction']))
+            self.assertEqual((row[3], row[4], row[5]), expected_spike)
+            self.assertEqual(terminal, expected_spike)
+            self.assertEqual((row[1], row[2]), (spike['start'], spike['end_exclusive']))
+        self.assertEqual(spike_rows[0][3:6], (4, 5, '80.0%'))
+
+        bucket_rows = self.markdown_bucket_ratios(markdown)
+        self.assertEqual(len(bucket_rows), len(document['observation_buckets']))
+        for row, bucket in zip(bucket_rows, document['observation_buckets']):
+            ratio = bucket['log_error_ratio']
+            self.assertEqual(row[0], bucket['start'])
+            self.assertEqual(row[1], bucket['end_exclusive'])
+            self.assertEqual((row[2], row[3], row[4]),
+                             (int(ratio['errors']), int(ratio['total']),
+                              percent(ratio['fraction'])))
+
+        self.assertIn('not a request failure rate', document['log_error_ratio_semantics'])
+        # The filtered spike table is still present and separate from the ratio table.
+        self.assertIn('| 2026-10-28 08:30:00Z | 2026-10-28 08:35:00Z | 4 | 4 | 0 |',
+                      markdown)
+
+    def test_observation_bucket_table_caps_display_at_fifty(self):
+        lines = [f'2026-10-28 {8 + i // 12:02d}:{(i % 12) * 5:02d}:00 [INFO] tick'
+                 for i in range(60)]
+        self.source.write_text('\n'.join(lines) + '\n', encoding='utf8')
+        json_path = self.root / 'report.json'
+        self.analyze()
+        report = self.report.read_text()
+        self.assertEqual(len(self.markdown_bucket_ratios(report)), 50)
+        self.assertIn('Showing the first 50 of 60 observation buckets', report)
+        self.analyze_to(json_path, '--format', 'json')
+        self.assertEqual(len(json.loads(json_path.read_text())['observation_buckets']), 60)
 
 
 if __name__ == '__main__':

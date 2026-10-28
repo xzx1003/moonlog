@@ -2,6 +2,7 @@
 pub struct Analyzer {
   config : Config
   filter : Filter
+  observation : Map[Int64, Bucket]
   buckets : Map[Int64, Bucket]
   signatures : Map[String, Int32]
   counts : Map[String, Int32]
@@ -21,6 +22,7 @@ pub fn Analyzer::new(
   {
     config,
     filter,
+    observation: {},
     buckets: {},
     signatures: {},
     counts: {},
@@ -59,6 +61,13 @@ pub fn Analyzer::feed(self : Analyzer, raw : String) -> Unit raise {
     }
     self.first = Some(first)
     self.last = Some(last)
+    let observed = self.observation.get_or_init(start, fn() {
+      { start, total: 0, errors: 0, }
+    })
+    observed.total += 1
+    if record.level.is_error() {
+      observed.errors += 1
+    }
   }
   if !self.filter.accepts(record) {
     return
@@ -99,6 +108,7 @@ pub(all) struct Analysis {
   matched : Int32
   untimed : Int32
   counts : Map[String, Int32]
+  observation_buckets : Array[Bucket]
   buckets : Array[Bucket]
   spikes : Array[Spike]
   signatures : Array[Signature]
@@ -108,9 +118,13 @@ pub(all) struct Analysis {
 ///|
 pub fn Analyzer::finish(self : Analyzer) -> Analysis {
   let buckets : Array[Bucket] = []
+  let observation_buckets : Array[Bucket] = []
   if self.first is Some(first) && self.last is Some(last) {
     let width = self.config.bucket_minutes.to_int64()
     for start = first; start <= last; start = start + width {
+      observation_buckets.push(
+        self.observation.get_or_default(start, { start, total: 0, errors: 0, }),
+      )
       buckets.push(
         self.buckets.get_or_default(start, { start, total: 0, errors: 0, }),
       )
@@ -134,6 +148,7 @@ pub fn Analyzer::finish(self : Analyzer) -> Analysis {
     untimed: self.untimed,
     counts: self.counts.copy(),
     buckets,
+    observation_buckets,
     spikes: detect_spikes(buckets, self.config),
     signatures,
     overflow_signatures: self.overflow_signatures,

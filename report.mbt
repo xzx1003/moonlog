@@ -53,6 +53,19 @@ fn code_fence(windows : Array[ContextWindow]) -> String {
 }
 
 ///|
+// Ratios are shares of log lines. "N/A" marks an empty denominator (no
+// time-valid line in the range), which is not the same as 0%.
+pub fn format_ratio(ratio : LogErrorRatio) -> String {
+  match ratio.fraction {
+    None => "N/A"
+    Some(fraction) => {
+      let tenths = (fraction * 1000.0 + 0.5).to_int()
+      "\{tenths / 10}.\{tenths % 10}%"
+    }
+  }
+}
+
+///|
 pub fn markdown_report(
   analysis : Analysis,
   contexts : ContextCollector,
@@ -66,6 +79,7 @@ pub fn markdown_report(
     out.write_char('\n')
   }
   let c = analysis.config
+  let overall = analysis.log_error_ratio()
   let context_targets = if context_mode == Spikes {
     "ERROR + FATAL records inside detected spikes"
   } else {
@@ -87,6 +101,9 @@ pub fn markdown_report(
   let errors = analysis.counts.get_or_default("ERROR", 0) +
     analysis.counts.get_or_default("FATAL", 0)
   line("- ERROR + FATAL: \{errors}")
+  line(
+    "- Log error ratio (all observed lines, before level/keyword filters): \{format_ratio(overall)} (\{overall.errors} of \{overall.total} time-valid lines)",
+  )
   line("- Detected spikes: \{analysis.spikes.length()}")
   line(
     "- Context targets sampled: \{contexts.sampled()} (limit \{c.max_samples}); omitted: \{contexts.omitted()}",
@@ -223,6 +240,81 @@ pub fn markdown_report(
       line("")
     }
   }
+  line("## Log error ratio")
+  line("")
+  line(
+    "Scope: time-valid physical log lines inside the time filter, counted before level and keyword filtering. ERROR + FATAL lines form the numerator; every other time-valid line (DEBUG/INFO/WARN/OTHER) stays in the denominator. Lines without a valid timestamp enter neither side, so the denominator can differ from the scanned line count.",
+  )
+  line("")
+  line(
+    "This is a share of log lines, not a request failure rate: one request can emit many lines, and a quiet period can raise the share without any new failure. `--level` and `--keyword` do not change these numbers; `--from` and `--to` do. Buckets with no time-valid line report N/A instead of 0%.",
+  )
+  line("")
+  line("### All observed lines")
+  line("")
+  line("| ERROR + FATAL | Time-valid lines | Ratio |")
+  line("| ---: | ---: | ---: |")
+  line("| \{overall.errors} | \{overall.total} | \{format_ratio(overall)} |")
+  line("")
+  line("### By spike")
+  line("")
+  if analysis.spikes.is_empty() {
+    line("No spikes met the rule, so there is no spike interval to measure.")
+  } else {
+    line(
+      "| Spike | Start UTC | End UTC (exclusive) | ERROR + FATAL | Time-valid lines | Ratio |",
+    )
+    line("| ---: | --- | --- | ---: | ---: | ---: |")
+    for i in 0..<analysis.spikes.length() {
+      let spike = analysis.spikes[i]
+      let ratio = analysis.log_error_ratio(
+        start=Some(spike.start),
+        end=Some(spike.end),
+      )
+      line(
+        "| \{i+1} | \{format_time(spike.start)} | \{format_time(spike.end)} | \{ratio.errors} | \{ratio.total} | \{format_ratio(ratio)} |",
+      )
+    }
+    line("")
+    line(
+      "Spike intervals use bucket boundaries with the end excluded, matching the filtered spike table above. When a level or keyword filter is active, the ERROR + FATAL count here can exceed the filtered count there, because the ratio ignores those filters.",
+    )
+  }
+  line("")
+  line("### By observation bucket")
+  line("")
+  let observed = analysis.observation_buckets
+  if observed.is_empty() {
+    line("No time-valid line was observed, so there is no observation bucket.")
+  } else {
+    line(
+      "| Start UTC | End UTC (exclusive) | ERROR + FATAL | Time-valid lines | Ratio |",
+    )
+    line("| --- | --- | ---: | ---: | ---: |")
+    let limit = 50
+    let width = c.bucket_minutes.to_int64()
+    for i in 0..<observed.length() {
+      if i >= limit {
+        break
+      }
+      let bucket = observed[i]
+      let ratio = bucket.log_error_ratio()
+      line(
+        "| \{format_time(bucket.start)} | \{format_time(bucket.start + width)} | \{ratio.errors} | \{ratio.total} | \{format_ratio(ratio)} |",
+      )
+    }
+    if observed.length() > limit {
+      line("")
+      line(
+        "Showing the first \{limit} of \{observed.length()} observation buckets; the JSON report contains every bucket.",
+      )
+    }
+    line("")
+    line(
+      "An empty bucket contains no time-valid line, so its ratio is N/A rather than 0%.",
+    )
+  }
+  line("")
   line("## Top error signatures (matching filters)")
   line("")
   line(

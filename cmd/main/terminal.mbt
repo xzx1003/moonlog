@@ -84,6 +84,12 @@ fn terminal_summary(
   line(
     "Scanned \{summary.total} lines; matched \{summary.matched}; untimed \{summary.untimed}; errors \{summary.errors}; spikes \{summary.spikes.length()}.",
   )
+  line(
+    "Log error ratio (all observed lines): \{@engine.format_ratio(summary.log_error_ratio)} (\{summary.log_error_ratio.errors}/\{summary.log_error_ratio.total}).",
+  )
+  line(
+    "Ratio scope: time-valid lines only, OTHER included; level/keyword filters do not apply; untimed lines are excluded; a log-line share, not a request failure rate.",
+  )
   if summary.spikes.is_empty() {
     line("No spikes met the rule; this does not imply the service was healthy.")
   } else {
@@ -91,6 +97,9 @@ fn terminal_summary(
       let spike = summary.spikes[i]
       line(
         "Spike \{i + 1}: \{terminal_escape(spike.start)} to \{terminal_escape(spike.end_exclusive)} (end exclusive); errors \{spike.errors}.",
+      )
+      line(
+        "  Log error ratio: \{@engine.format_ratio(spike.log_error_ratio)} (\{spike.log_error_ratio.errors}/\{spike.log_error_ratio.total}).",
       )
       for text in spike_summary_lines(spike) {
         line(text)

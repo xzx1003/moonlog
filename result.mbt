@@ -22,6 +22,7 @@ pub fn ReportResult::new(
 
 ///|
 pub(all) struct SpikeSummary {
+  log_error_ratio : LogErrorRatio
   start : String
   end_exclusive : String
   errors : Int32
@@ -32,6 +33,7 @@ pub(all) struct SpikeSummary {
 
 ///|
 pub(all) struct TerminalSummary {
+  log_error_ratio : LogErrorRatio
   source : String
   total : Int32
   matched : Int32
@@ -58,6 +60,7 @@ pub fn ReportResult::summary(self : ReportResult) -> TerminalSummary {
       top.push(signatures[j])
     }
     {
+      log_error_ratio: a.log_error_ratio(start=Some(s.start), end=Some(s.end)),
       start: format_time(s.start),
       end_exclusive: format_time(s.end),
       errors: s.errors,
@@ -67,6 +70,7 @@ pub fn ReportResult::summary(self : ReportResult) -> TerminalSummary {
     }
   })
   {
+    log_error_ratio: a.log_error_ratio(),
     source: self.source,
     total: a.total,
     matched: a.matched,
@@ -112,6 +116,9 @@ pub fn ReportResult::to_json(self : ReportResult) -> Json {
   let spikes = Array::makei(a.spikes.length(), fn(i) {
     let s = a.spikes[i]
     Json::object({
+      "log_error_ratio": a
+      .log_error_ratio(start=Some(s.start), end=Some(s.end))
+      .to_json(),
       "start": Json(format_time(s.start)),
       "end_exclusive": Json(format_time(s.end)),
       "errors": Json(s.errors),
@@ -163,7 +170,11 @@ pub fn ReportResult::to_json(self : ReportResult) -> Json {
     "time_semantics": Json(
       "UTC; seconds floored to minutes; filters inclusive; spike ends exclusive",
     ),
+    "log_error_ratio_semantics": Json(
+      "Time-valid physical log lines within inclusive time filters; independent of level and keyword; ERROR/FATAL divided by all levels; fraction 0..1, null for zero denominator; not a request failure rate",
+    ),
     "summary": Json::object({
+      "log_error_ratio": a.log_error_ratio().to_json(),
       "total": Json(a.total),
       "matched": Json(a.matched),
       "untimed": Json(a.untimed),
@@ -186,6 +197,17 @@ pub fn ReportResult::to_json(self : ReportResult) -> Json {
           ),
           "total": Json(b.total),
           "errors": Json(b.errors),
+        })
+      }),
+    ),
+    "observation_buckets": Json::array(
+      a.observation_buckets.map(b => {
+        Json::object({
+          "start": Json(format_time(b.start)),
+          "end_exclusive": Json(
+            format_time(b.start + c.bucket_minutes.to_int64()),
+          ),
+          "log_error_ratio": b.log_error_ratio().to_json(),
         })
       }),
     ),

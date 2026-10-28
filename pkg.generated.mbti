@@ -10,6 +10,8 @@ pub fn detect_spikes(Array[Bucket], Config) -> Array[Spike]
 
 pub fn error_signature(Record) -> String
 
+pub fn format_ratio(LogErrorRatio) -> String
+
 pub fn format_time(Int64) -> String
 
 pub fn markdown_report(Analysis, ContextCollector, SpikeSignatureCollector, ContextMode, String) -> String
@@ -30,16 +32,19 @@ pub(all) struct Analysis {
   matched : Int32
   untimed : Int32
   counts : Map[String, Int32]
+  observation_buckets : Array[Bucket]
   buckets : Array[Bucket]
   spikes : Array[Spike]
   signatures : Array[Signature]
   overflow_signatures : Int32
 }
 pub fn Analysis::is_target(Self, String, mode? : ContextMode) -> Bool
+pub fn Analysis::log_error_ratio(Self, start? : Int64?, end? : Int64?) -> LogErrorRatio
 
 pub struct Analyzer {
   config : Config
   filter : Filter
+  observation : Map[Int64, Bucket]
   buckets : Map[Int64, Bucket]
   signatures : Map[String, Int32]
   counts : Map[String, Int32]
@@ -59,6 +64,7 @@ pub(all) struct Bucket {
   mut total : Int32
   mut errors : Int32
 } derive(@debug.Debug)
+pub fn Bucket::log_error_ratio(Self) -> LogErrorRatio
 #deprecated
 pub fn Bucket::to_repr(Self) -> @debug.Repr
 
@@ -137,6 +143,13 @@ pub fn Level::not_equal(Self, Self) -> Bool
 #deprecated
 pub fn Level::to_repr(Self) -> @debug.Repr
 
+pub(all) struct LogErrorRatio {
+  total : Int64
+  errors : Int64
+  fraction : Double?
+}
+pub fn LogErrorRatio::to_json(Self) -> Json
+
 pub(all) struct Record {
   minute : Int64?
   level : Level
@@ -210,6 +223,7 @@ pub fn SpikeSignatureCollector::omitted(Self, Int32) -> Int32
 pub fn SpikeSignatureCollector::signatures(Self, Int32) -> Array[Signature]
 
 pub(all) struct SpikeSummary {
+  log_error_ratio : LogErrorRatio
   start : String
   end_exclusive : String
   errors : Int32
@@ -219,6 +233,7 @@ pub(all) struct SpikeSummary {
 }
 
 pub(all) struct TerminalSummary {
+  log_error_ratio : LogErrorRatio
   source : String
   total : Int32
   matched : Int32

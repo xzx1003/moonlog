@@ -10,6 +10,7 @@ Deterministic log evidence; spike detection does not establish a root cause.
 - Lines matching filters: 30
 - Matched lines without a valid timestamp: 0
 - ERROR + FATAL: 4
+- Log error ratio (all observed lines, before level/keyword filters): 13.3% (4 of 30 time-valid lines)
 - Detected spikes: 1
 - Context targets sampled: 4 (limit 20); omitted: 0
 - Untracked signature occurrences after capacity limit: 0
@@ -58,6 +59,41 @@ Spike ERROR + FATAL records: 4; occurrences omitted by capacity: 0.
 | Signature | Occurrences |
 | --- | ---: |
 | ERROR: database timeout retry=\# | 4 |
+
+## Log error ratio
+
+Scope: time-valid physical log lines inside the time filter, counted before level and keyword filtering. ERROR + FATAL lines form the numerator; every other time-valid line (DEBUG/INFO/WARN/OTHER) stays in the denominator. Lines without a valid timestamp enter neither side, so the denominator can differ from the scanned line count.
+
+This is a share of log lines, not a request failure rate: one request can emit many lines, and a quiet period can raise the share without any new failure. `--level` and `--keyword` do not change these numbers; `--from` and `--to` do. Buckets with no time-valid line report N/A instead of 0%.
+
+### All observed lines
+
+| ERROR + FATAL | Time-valid lines | Ratio |
+| ---: | ---: | ---: |
+| 4 | 30 | 13.3% |
+
+### By spike
+
+| Spike | Start UTC | End UTC (exclusive) | ERROR + FATAL | Time-valid lines | Ratio |
+| ---: | --- | --- | ---: | ---: | ---: |
+| 1 | 2026-10-28 08:30:00Z | 2026-10-28 08:35:00Z | 4 | 5 | 80.0% |
+
+Spike intervals use bucket boundaries with the end excluded, matching the filtered spike table above. When a level or keyword filter is active, the ERROR + FATAL count here can exceed the filtered count there, because the ratio ignores those filters.
+
+### By observation bucket
+
+| Start UTC | End UTC (exclusive) | ERROR + FATAL | Time-valid lines | Ratio |
+| --- | --- | ---: | ---: | ---: |
+| 2026-10-28 08:00:00Z | 2026-10-28 08:05:00Z | 0 | 5 | 0.0% |
+| 2026-10-28 08:05:00Z | 2026-10-28 08:10:00Z | 0 | 5 | 0.0% |
+| 2026-10-28 08:10:00Z | 2026-10-28 08:15:00Z | 0 | 5 | 0.0% |
+| 2026-10-28 08:15:00Z | 2026-10-28 08:20:00Z | 0 | 1 | 0.0% |
+| 2026-10-28 08:20:00Z | 2026-10-28 08:25:00Z | 0 | 1 | 0.0% |
+| 2026-10-28 08:25:00Z | 2026-10-28 08:30:00Z | 0 | 5 | 0.0% |
+| 2026-10-28 08:30:00Z | 2026-10-28 08:35:00Z | 4 | 5 | 80.0% |
+| 2026-10-28 08:35:00Z | 2026-10-28 08:40:00Z | 0 | 3 | 0.0% |
+
+An empty bucket contains no time-valid line, so its ratio is N/A rather than 0%.
 
 ## Top error signatures (matching filters)
 
