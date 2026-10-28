@@ -23,6 +23,7 @@ Deterministic log evidence; spike detection does not establish a root cause.
 - Zero baseline: trigger at minimum error count. Warm-up: no detection until a full baseline exists.
 - Adjacent flagged buckets merge; incident end is the exclusive bucket boundary.
 - Timestamps without offsets are interpreted as UTC; seconds/fractions are floored to minutes.
+- Context mode: spikes; targets: ERROR + FATAL records inside detected spikes.
 - Context: up to 10 physical lines on either side; overlapping/adjacent windows merge. Context includes unfiltered evidence.
 - Level: all
 - Message keyword (case-sensitive): 
@@ -67,6 +68,8 @@ Decimal runs become #; the message portion is capped at 512 characters (the leve
 | ERROR: database timeout retry=\# | 4 |
 
 ## Context evidence
+
+Targets are ERROR + FATAL records inside detected spikes. Context lines are physical neighbors and are not filtered.
 
 ### Window 1
 

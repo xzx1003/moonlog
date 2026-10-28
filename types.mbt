@@ -174,3 +174,25 @@ pub extend Level with Eq::{equal, not_equal}
 ///|
 #deprecated
 pub extend Record with Eq::{equal, not_equal}
+
+///|
+pub(all) enum ContextMode {
+  Spikes
+  Errors
+} derive(Eq, Debug)
+
+///|
+pub fn ContextMode::label(self : ContextMode) -> String {
+  match self {
+    Spikes => "spikes"
+    Errors => "errors"
+  }
+}
+
+///|
+#deprecated
+pub extend ContextMode with Eq::{equal, not_equal}
+
+///|
+#deprecated
+pub extend ContextMode with @debug.Debug::{to_repr}

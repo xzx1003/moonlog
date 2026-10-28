@@ -9,6 +9,7 @@ const Usage : String =
   #|  --multiplier N       Strict spike multiplier (default 3)
   #|  --min-errors N       Minimum errors per spike bucket (default 3)
   #|  --context N          Physical lines before/after each target (default 10)
+  #|  --context-mode MODE  Context targets: spikes or errors (default spikes)
   #|  --max-samples N      Maximum context targets (default 20)
   #|  --max-buckets N      Maximum bucket span (default 100000)
   #|  --max-signatures N   Maximum retained signatures (default 1000)
@@ -73,6 +74,7 @@ fn run(args : Array[String]) -> Unit raise {
   let mut multiplier = 3
   let mut min_errors = 3
   let mut context = 10
+  let mut context_mode = @engine.ContextMode::Spikes
   let mut max_samples = 20
   let mut max_buckets = 100000
   let mut max_signatures = 1000
@@ -104,6 +106,12 @@ fn run(args : Array[String]) -> Unit raise {
       "--multiplier" => multiplier = positive_or_zero(value, flag)
       "--min-errors" => min_errors = positive_or_zero(value, flag)
       "--context" => context = positive_or_zero(value, flag)
+      "--context-mode" =>
+        match value {
+          "spikes" => context_mode = @engine.ContextMode::Spikes
+          "errors" => context_mode = @engine.ContextMode::Errors
+          _ => fail("unknown context mode: \{value}")
+        }
       "--max-samples" => max_samples = positive_or_zero(value, flag)
       "--max-buckets" => max_buckets = positive_or_zero(value, flag)
       "--max-signatures" => max_signatures = positive_or_zero(value, flag)
@@ -162,7 +170,8 @@ fn run(args : Array[String]) -> Unit raise {
     raw => {
       second_digest = update_digest(second_digest, raw)
       second_lines += 1
-      contexts.feed(raw, spike_signatures.feed(raw))
+      ignore(spike_signatures.feed(raw))
+      contexts.feed(raw, analysis.is_target(raw, mode=context_mode))
     },
     max_line_bytes~,
   )
@@ -171,7 +180,9 @@ fn run(args : Array[String]) -> Unit raise {
   }
   @io.write_report(
     report,
-    @engine.markdown_report(analysis, contexts, spike_signatures, source),
+    @engine.markdown_report(
+      analysis, contexts, spike_signatures, context_mode, source,
+    ),
   )
   println(
     "Scanned \{analysis.total} lines; matched \{analysis.matched}; spikes \{analysis.spikes.length()}; sampled targets \{contexts.sampled()}; omitted targets \{contexts.omitted()}.",

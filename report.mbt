@@ -57,6 +57,7 @@ pub fn markdown_report(
   analysis : Analysis,
   contexts : ContextCollector,
   spike_signatures : SpikeSignatureCollector,
+  context_mode : ContextMode,
   source : String,
 ) -> String {
   let out = StringBuilder()
@@ -65,6 +66,11 @@ pub fn markdown_report(
     out.write_char('\n')
   }
   let c = analysis.config
+  let context_targets = if context_mode == Spikes {
+    "ERROR + FATAL records inside detected spikes"
+  } else {
+    "all matching ERROR + FATAL records; untimed records are excluded when a time bound is set"
+  }
   line("# MoonLog Incident Report")
   line("")
   line(
@@ -115,6 +121,7 @@ pub fn markdown_report(
   line(
     "- Timestamps without offsets are interpreted as UTC; seconds/fractions are floored to minutes.",
   )
+  line("- Context mode: \{context_mode.label()}; targets: \{context_targets}.")
   line(
     "- Context: up to \{c.context} physical lines on either side; overlapping/adjacent windows merge. Context includes unfiltered evidence.",
   )
@@ -143,6 +150,11 @@ pub fn markdown_report(
   line("")
   if analysis.spikes.is_empty() {
     line("No spikes met the rule. This does not imply the service was healthy.")
+    if context_mode == Errors {
+      line(
+        "Error context is still collected from matching ERROR + FATAL records in errors mode.",
+      )
+    }
   } else {
     line(
       "| Start UTC | End UTC (exclusive) | Errors | Peak per bucket | Baseline at start |",
@@ -229,10 +241,22 @@ pub fn markdown_report(
   line("")
   line("## Context evidence")
   line("")
+  line(
+    if context_mode == Spikes {
+      "Targets are ERROR + FATAL records inside detected spikes. Context lines are physical neighbors and are not filtered."
+    } else {
+      "Targets are matching ERROR + FATAL records, including when no spike is detected. Context lines are physical neighbors and are not filtered."
+    },
+  )
+  line("")
   let windows = contexts.windows()
   if windows.is_empty() {
     line(
-      "No sampled spike context. Raw stack/unknown lines are preserved only as surrounding evidence.",
+      if context_mode == Spikes {
+        "No sampled spike context. Raw stack/unknown lines are preserved only as surrounding evidence."
+      } else {
+        "No sampled error context. This can happen when no record matches the filters or the sample limit is 0."
+      },
     )
   }
   let fence = code_fence(windows)

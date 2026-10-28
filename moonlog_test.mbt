@@ -421,17 +421,28 @@ test "report is deterministic and raw backticks cannot close context fences" {
     ignore(spike_signatures.feed("2026-10-28 08:05:00 [ERROR] `<script>|` 123"))
   }
   let first = @cli.markdown_report(
-    analysis, contexts, spike_signatures, "file[1].log",
+    analysis,
+    contexts,
+    spike_signatures,
+    @cli.ContextMode::Spikes,
+    "file[1].log",
   )
   assert_eq(
     first,
-    @cli.markdown_report(analysis, contexts, spike_signatures, "file[1].log"),
+    @cli.markdown_report(
+      analysis,
+      contexts,
+      spike_signatures,
+      @cli.ContextMode::Spikes,
+      "file[1].log",
+    ),
   )
   assert_true(first.contains("````text"))
   assert_true(first.contains("&lt;script&gt;&#124;"))
   assert_true(first.contains("Target source lines: 1"))
   assert_true(first.contains("## Error signatures by spike"))
   assert_true(first.contains("### Spike 1:"))
+  assert_true(first.contains("- Context mode: spikes"))
 }
 
 ///|
@@ -544,4 +555,66 @@ test "spike signatures apply filters and deterministic tie ordering" {
     @cli.Analyzer::new(config).finish(),
   )
   assert_eq(empty.feed(lines[1]), false)
+}
+
+///|
+test "errors context mode works without spikes and keeps physical neighbors" {
+  let config = @cli.Config::new(context=1, max_samples=1)
+  let analyzer = @cli.Analyzer::new(config)
+  let lines = [
+    "2026-10-28 08:00:00 [INFO] before", "2026-10-28 08:01:00 [ERROR] failed", "stack frame without timestamp",
+    "2026-10-28 08:02:00 [FATAL] crashed",
+  ]
+  for raw in lines {
+    analyzer.feed(raw)
+  }
+  let analysis = analyzer.finish()
+  assert_eq(analysis.spikes.length(), 0)
+  let contexts = @cli.ContextCollector::new(config)
+  for raw in lines {
+    assert_eq(analysis.is_target(raw), false)
+    contexts.feed(raw, analysis.is_target(raw, mode=Errors))
+  }
+  assert_eq(contexts.sampled(), 1)
+  assert_eq(contexts.omitted(), 1)
+  assert_eq(contexts.windows().length(), 1)
+  assert_eq(contexts.windows()[0].targets, [2])
+  assert_eq(contexts.windows()[0].lines.map(line => line.number), [1, 2, 3])
+  assert_eq(contexts.windows()[0].lines[2].text, lines[2])
+}
+
+///|
+test "errors context mode honors level keyword and inclusive time bounds" {
+  let config = @cli.Config::new()
+  let filter : @cli.Filter = {
+    level: Some(Error),
+    keyword: "keep",
+    from: @cli.parse_time("2026-10-28 08:00:00Z"),
+    to: @cli.parse_time("2026-10-28 08:05:00Z"),
+  }
+  let analysis = @cli.Analyzer::new(config, filter~).finish()
+  for
+    raw in [
+      "2026-10-28 08:00:00 [ERROR] keep", "2026-10-28 08:05:00 [ERROR] keep",
+    ] {
+    assert_true(analysis.is_target(raw, mode=Errors))
+  }
+  for
+    raw in [
+      "2026-10-28 07:59:00 [ERROR] keep", "2026-10-28 08:06:00 [ERROR] keep", "2026-10-28 08:01:00 [FATAL] keep",
+      "2026-10-28 08:01:00 [INFO] keep", "2026-10-28 08:01:00 [ERROR] discard", "{\"ts\":\"bad\",\"level\":\"ERROR\",\"msg\":\"keep\"}",
+    ] {
+    assert_eq(analysis.is_target(raw, mode=Errors), false)
+  }
+}
+
+///|
+test "errors context accepts untimed JSON errors without time bounds" {
+  let analysis = @cli.Analyzer::new(@cli.Config::new()).finish()
+  let raw = "{\"ts\":\"bad\",\"level\":\"ERROR\",\"msg\":\"failed\"}"
+  assert_true(analysis.is_target(raw, mode=Errors))
+  assert_eq(analysis.is_target(raw), false)
+  assert_eq(analysis.is_target("stack frame", mode=Errors), false)
+  assert_eq(@cli.ContextMode::Spikes.label(), "spikes")
+  assert_eq(@cli.ContextMode::Errors.label(), "errors")
 }

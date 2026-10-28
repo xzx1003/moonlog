@@ -12,7 +12,7 @@ pub fn error_signature(Record) -> String
 
 pub fn format_time(Int64) -> String
 
-pub fn markdown_report(Analysis, ContextCollector, SpikeSignatureCollector, String) -> String
+pub fn markdown_report(Analysis, ContextCollector, SpikeSignatureCollector, ContextMode, String) -> String
 
 pub fn parse_level(String) -> Level
 
@@ -35,7 +35,7 @@ pub(all) struct Analysis {
   signatures : Array[Signature]
   overflow_signatures : Int32
 }
-pub fn Analysis::is_target(Self, String) -> Bool
+pub fn Analysis::is_target(Self, String, mode? : ContextMode) -> Bool
 
 pub struct Analyzer {
   config : Config
@@ -90,6 +90,18 @@ pub fn ContextCollector::new(Config) -> Self
 pub fn ContextCollector::omitted(Self) -> Int32
 pub fn ContextCollector::sampled(Self) -> Int32
 pub fn ContextCollector::windows(Self) -> Array[ContextWindow]
+
+pub(all) enum ContextMode {
+  Spikes
+  Errors
+} derive(Eq, @debug.Debug)
+#deprecated
+pub fn ContextMode::equal(Self, Self) -> Bool
+pub fn ContextMode::label(Self) -> String
+#deprecated
+pub fn ContextMode::not_equal(Self, Self) -> Bool
+#deprecated
+pub fn ContextMode::to_repr(Self) -> @debug.Repr
 
 pub(all) struct ContextWindow {
   lines : Array[SourceLine]

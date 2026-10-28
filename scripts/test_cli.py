@@ -47,6 +47,8 @@ class CLI(unittest.TestCase):
         for args in [('--context', 'bad'), ('--context', '-1'),
                      ('--bucket-minutes', '0'), ('--unknown', 'value'),
                      ('--level', 'oops'), ('--from', 'not-a-date'),
+                     ('--context-mode', 'oops'), ('--context-mode',),
+                     ('--context-mode', 'errors', '--context-mode', 'spikes'),
                      ('--context', '1', '--context', '2'),
                      ('--from', '2026-10-29 00:00:00', '--to', '2026-10-28 00:00:00')]:
             with self.subTest(args=args):
@@ -57,6 +59,12 @@ class CLI(unittest.TestCase):
         result = self.run_cli('analyze', '--help')
         self.assertIn('Usage: moonlog analyze', result.stdout)
         self.assertEqual(result.stderr, '')
+
+    def test_analyze_help_lists_context_mode(self):
+        result = self.run_cli('analyze', '--help')
+        self.assertIn('--context-mode MODE', result.stdout)
+        result = self.run_cli('--help')
+        self.assertIn('--context-mode MODE', result.stdout)
 
     def test_cli_errors_hide_internal_failure_wrapper(self):
         for args in [(), ('analyze',),
@@ -104,6 +112,75 @@ class CLI(unittest.TestCase):
         second = self.root / 'second.md'
         self.run_cli('analyze', self.source, '--report', second, '--context', '2')
         self.assertEqual(report, second.read_text())
+
+    def test_default_context_mode_matches_explicit_spikes(self):
+        self.source.write_bytes((ROOT / 'fixtures/incident.log').read_bytes())
+        self.analyze('--context', '2')
+        default = self.report.read_text()
+        second = self.root / 'second.md'
+        self.run_cli('analyze', self.source, '--report', second,
+                     '--context', '2', '--context-mode', 'spikes')
+        self.assertEqual(default, second.read_text())
+        self.assertIn('- Context mode: spikes', default)
+
+    def test_errors_context_mode_samples_errors_without_spikes(self):
+        self.source.write_text(
+            '2026-10-28 08:00:00 [INFO] before\n'
+            '2026-10-28 08:01:00 [ERROR] failed\n'
+            'stack frame without timestamp\n'
+            '2026-10-28 08:02:00 [INFO] after\n',
+            encoding='utf8',
+        )
+        self.analyze('--context-mode', 'errors', '--context', '1')
+        report = self.report.read_text()
+        self.assertIn('- Detected spikes: 0\n', report)
+        self.assertIn('- Context mode: errors', report)
+        self.assertIn('- Context targets sampled: 1 (limit 20); omitted: 0', report)
+        self.assertIn('Error context is still collected', report)
+        self.assertIn('Target source lines: 2.', report)
+        self.assertIn('  1: 2026-10-28 08:00:00 [INFO] before', report)
+        self.assertIn('> 2: 2026-10-28 08:01:00 [ERROR] failed', report)
+        self.assertIn('  3: stack frame without timestamp', report)
+        self.assertNotIn('No sampled', report)
+
+    def test_errors_context_mode_does_not_change_spike_ranking(self):
+        self.source.write_bytes((ROOT / 'fixtures/incident.log').read_bytes())
+        self.analyze('--context-mode', 'errors', '--context', '0')
+        report = self.report.read_text()
+        sections = self.spike_sections(report)
+        self.assertIn('| ERROR: database timeout retry=\\# | 4 |', sections[1])
+        self.assertIn('- Context targets sampled: 4 (limit 20); omitted: 0', report)
+
+    def test_errors_context_mode_applies_filters_and_accepts_untimed_json(self):
+        self.source.write_text(
+            '2026-10-28 08:00:00 [INFO] before\n'
+            '2026-10-28 08:00:00 [ERROR] keep this\n'
+            '2026-10-28 08:00:00 [ERROR] discard\n'
+            '2026-10-28 08:00:00 [INFO] after\n'
+            '{"ts":"bad","level":"ERROR","msg":"keep untimed"}\n',
+            encoding='utf8',
+        )
+        self.analyze('--context-mode', 'errors', '--context', '1',
+                     '--level', 'ERROR', '--keyword', 'keep',
+                     '--from', '2026-10-28 08:00:00',
+                     '--to', '2026-10-28 08:00:00')
+        report = self.report.read_text()
+        self.assertIn('- Lines matching filters: 1\n', report)
+        self.assertIn('- Context targets sampled: 1 (limit 20); omitted: 0', report)
+        self.assertIn('Target source lines: 2.', report)
+        self.assertIn('  1: 2026-10-28 08:00:00 [INFO] before', report)
+        self.assertIn('> 2: 2026-10-28 08:00:00 [ERROR] keep this', report)
+        self.assertIn('  3: 2026-10-28 08:00:00 [ERROR] discard', report)
+        self.assertNotIn('keep untimed', report)
+
+        self.report.unlink()
+        self.analyze('--context-mode', 'errors', '--context', '0',
+                     '--keyword', 'keep')
+        report = self.report.read_text()
+        self.assertIn('- Context targets sampled: 2 (limit 20); omitted: 0', report)
+        self.assertIn('Target source lines: 2.', report)
+        self.assertIn('Target source lines: 5.', report)
+        self.assertIn('> 5: {"ts":"bad","level":"ERROR","msg":"keep untimed"}', report)
 
     def test_spike_signatures_rank_separately_and_exclude_baseline(self):
         self.source.write_text(

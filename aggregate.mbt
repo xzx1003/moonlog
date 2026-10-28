@@ -182,10 +182,20 @@ pub fn detect_spikes(buckets : Array[Bucket], config : Config) -> Array[Spike] {
 }
 
 ///|
-pub fn Analysis::is_target(self : Analysis, raw : String) -> Bool {
+pub fn Analysis::is_target(
+  self : Analysis,
+  raw : String,
+  mode~ : ContextMode = Spikes,
+) -> Bool {
   let record = parse_line(raw)
   if !record.level.is_error() || !self.filter.accepts(record) {
     return false
+  }
+  // In Errors mode, untimed errors are eligible only when the filter accepts
+  // them (a from/to bound excludes untimed records). Context remains physical
+  // source lines, so neighboring lines need not satisfy the target filter.
+  if mode == Errors {
+    return true
   }
   guard record.minute is Some(minute) else { return false }
   let mut lo = 0
