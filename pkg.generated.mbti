@@ -1,0 +1,179 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonlog/cli"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn detect_spikes(Array[Bucket], Config) -> Array[Spike]
+
+pub fn error_signature(Record) -> String
+
+pub fn format_time(Int64) -> String
+
+pub fn markdown_report(Analysis, ContextCollector, String) -> String
+
+pub fn parse_level(String) -> Level
+
+pub fn parse_line(String) -> Record
+
+pub fn parse_time(String) -> Int64?
+
+// Errors
+
+// Types and methods
+pub(all) struct Analysis {
+  config : Config
+  filter : Filter
+  total : Int32
+  matched : Int32
+  untimed : Int32
+  counts : Map[String, Int32]
+  buckets : Array[Bucket]
+  spikes : Array[Spike]
+  signatures : Array[Signature]
+  overflow_signatures : Int32
+}
+pub fn Analysis::is_target(Self, String) -> Bool
+
+pub struct Analyzer {
+  config : Config
+  filter : Filter
+  buckets : Map[Int64, Bucket]
+  signatures : Map[String, Int32]
+  counts : Map[String, Int32]
+  mut total : Int32
+  mut matched : Int32
+  mut untimed : Int32
+  mut overflow_signatures : Int32
+  mut first : Int64?
+  mut last : Int64?
+}
+pub fn Analyzer::feed(Self, String) -> Unit raise
+pub fn Analyzer::finish(Self) -> Analysis
+pub fn Analyzer::new(Config, filter? : Filter) -> Self
+
+pub(all) struct Bucket {
+  start : Int64
+  mut total : Int32
+  mut errors : Int32
+} derive(@debug.Debug)
+#deprecated
+pub fn Bucket::to_repr(Self) -> @debug.Repr
+
+pub(all) struct Config {
+  bucket_minutes : Int32
+  baseline_buckets : Int32
+  multiplier : Int32
+  min_errors : Int32
+  context : Int32
+  max_samples : Int32
+  max_buckets : Int32
+  max_signatures : Int32
+} derive(@debug.Debug)
+pub fn Config::new(bucket_minutes? : Int32, baseline_buckets? : Int32, multiplier? : Int32, min_errors? : Int32, context? : Int32, max_samples? : Int32, max_buckets? : Int32, max_signatures? : Int32) -> Self raise
+#deprecated
+pub fn Config::to_repr(Self) -> @debug.Repr
+
+pub struct ContextCollector {
+  before : RingBuffer
+  radius : Int32
+  max_samples : Int32
+  windows : Array[ContextWindow]
+  mut seen : Int32
+  mut sampled : Int32
+  mut omitted : Int32
+}
+pub fn ContextCollector::feed(Self, String, Bool) -> Unit
+pub fn ContextCollector::new(Config) -> Self
+pub fn ContextCollector::omitted(Self) -> Int32
+pub fn ContextCollector::sampled(Self) -> Int32
+pub fn ContextCollector::windows(Self) -> Array[ContextWindow]
+
+pub(all) struct ContextWindow {
+  lines : Array[SourceLine]
+  targets : Array[Int32]
+  mut end_line : Int32
+}
+
+pub(all) struct Filter {
+  level : Level?
+  keyword : String
+  from : Int64?
+  to : Int64?
+} derive(@debug.Debug)
+pub fn Filter::accepts(Self, Record) -> Bool
+pub fn Filter::new() -> Self
+#deprecated
+pub fn Filter::to_repr(Self) -> @debug.Repr
+
+pub(all) enum Level {
+  Debug
+  Info
+  Warn
+  Error
+  Fatal
+  Other
+} derive(Eq, @debug.Debug)
+#deprecated
+pub fn Level::equal(Self, Self) -> Bool
+pub fn Level::is_error(Self) -> Bool
+pub fn Level::label(Self) -> String
+#deprecated
+pub fn Level::not_equal(Self, Self) -> Bool
+#deprecated
+pub fn Level::to_repr(Self) -> @debug.Repr
+
+pub(all) struct Record {
+  minute : Int64?
+  level : Level
+  message : String
+} derive(Eq, @debug.Debug)
+#deprecated
+pub fn Record::equal(Self, Self) -> Bool
+#deprecated
+pub fn Record::not_equal(Self, Self) -> Bool
+#deprecated
+pub fn Record::to_repr(Self) -> @debug.Repr
+
+pub struct RingBuffer {
+  capacity : Int32
+  slots : Array[SourceLine]
+  mut next : Int32
+}
+pub fn RingBuffer::new(Int32) -> Self
+pub fn RingBuffer::push(Self, SourceLine) -> Unit
+pub fn RingBuffer::snapshot(Self) -> Array[SourceLine]
+
+pub(all) struct Signature {
+  text : String
+  count : Int32
+} derive(@debug.Debug)
+#deprecated
+pub fn Signature::to_repr(Self) -> @debug.Repr
+
+pub(all) struct SourceLine {
+  number : Int32
+  text : String
+} derive(Eq, @debug.Debug)
+#deprecated
+pub fn SourceLine::equal(Self, Self) -> Bool
+#deprecated
+pub fn SourceLine::not_equal(Self, Self) -> Bool
+#deprecated
+pub fn SourceLine::to_repr(Self) -> @debug.Repr
+
+pub(all) struct Spike {
+  start : Int64
+  mut end : Int64
+  mut errors : Int32
+  mut peak_errors : Int32
+  baseline : Double
+} derive(@debug.Debug)
+#deprecated
+pub fn Spike::to_repr(Self) -> @debug.Repr
+
+// Type aliases
+
+// Traits

@@ -1,0 +1,10 @@
+.DS_Store
+_build/
+target/
+target
+.mooncakes/
+.moonagent/
+/bin/
+
+# Local analysis output; curated examples live in docs/.
+/incident.md

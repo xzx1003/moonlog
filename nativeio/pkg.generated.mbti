@@ -1,0 +1,19 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonlog/cli/nativeio"
+
+// Values
+pub fn each_line(String, (String) -> Unit raise, max_line_bytes? : Int32) -> Unit raise
+
+pub fn exit(Int32) -> Unit
+
+pub fn stderr(String) -> Unit
+
+pub fn write_report(String, String) -> Unit raise
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits
