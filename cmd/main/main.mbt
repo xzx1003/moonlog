@@ -154,6 +154,7 @@ fn run(args : Array[String]) -> Unit raise {
   )
   let analysis = analyzer.finish()
   let contexts = @engine.ContextCollector::new(config)
+  let spike_signatures = @engine.SpikeSignatureCollector::new(analysis)
   let mut second_digest = 14695981039346656037UL
   let mut second_lines = 0
   @io.each_line(
@@ -161,14 +162,17 @@ fn run(args : Array[String]) -> Unit raise {
     raw => {
       second_digest = update_digest(second_digest, raw)
       second_lines += 1
-      contexts.feed(raw, analysis.is_target(raw))
+      contexts.feed(raw, spike_signatures.feed(raw))
     },
     max_line_bytes~,
   )
   if first_digest != second_digest || second_lines != analysis.total {
     fail("input changed between passes; analyze a stable snapshot instead")
   }
-  @io.write_report(report, @engine.markdown_report(analysis, contexts, source))
+  @io.write_report(
+    report,
+    @engine.markdown_report(analysis, contexts, spike_signatures, source),
+  )
   println(
     "Scanned \{analysis.total} lines; matched \{analysis.matched}; spikes \{analysis.spikes.length()}; sampled targets \{contexts.sampled()}; omitted targets \{contexts.omitted()}.",
   )

@@ -12,7 +12,7 @@ pub fn error_signature(Record) -> String
 
 pub fn format_time(Int64) -> String
 
-pub fn markdown_report(Analysis, ContextCollector, String) -> String
+pub fn markdown_report(Analysis, ContextCollector, SpikeSignatureCollector, String) -> String
 
 pub fn parse_level(String) -> Level
 
@@ -173,6 +173,17 @@ pub(all) struct Spike {
 } derive(@debug.Debug)
 #deprecated
 pub fn Spike::to_repr(Self) -> @debug.Repr
+
+pub struct SpikeSignatureCollector {
+  analysis : Analysis
+  counts : Array[Map[String, Int32]]
+  omitted : Array[Int32]
+  mut retained : Int32
+}
+pub fn SpikeSignatureCollector::feed(Self, String) -> Bool
+pub fn SpikeSignatureCollector::new(Analysis) -> Self
+pub fn SpikeSignatureCollector::omitted(Self, Int32) -> Int32
+pub fn SpikeSignatureCollector::signatures(Self, Int32) -> Array[Signature]
 
 // Type aliases
 

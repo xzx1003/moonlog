@@ -56,6 +56,7 @@ fn code_fence(windows : Array[ContextWindow]) -> String {
 pub fn markdown_report(
   analysis : Analysis,
   contexts : ContextCollector,
+  spike_signatures : SpikeSignatureCollector,
   source : String,
 ) -> String {
   let out = StringBuilder()
@@ -154,10 +155,66 @@ pub fn markdown_report(
     }
   }
   line("")
+  line("## Error signatures by spike")
+  line("")
+  line(
+    "Signatures count only ERROR/FATAL records inside each spike after filters. All spikes share one capacity (max_signatures = \{c.max_signatures}), so the same signature in different spikes occupies separate slots. Tables show at most the top 10 retained signatures; capacity omissions are reported separately.",
+  )
+  line("")
+  if analysis.spikes.is_empty() {
+    line("No spikes met the rule, so there are no per-spike signatures.")
+    line("")
+  } else {
+    for i in 0..<analysis.spikes.length() {
+      let spike = analysis.spikes[i]
+      let signatures = spike_signatures.signatures(i)
+      let omitted = spike_signatures.omitted(i)
+      line(
+        "### Spike \{i+1}: \{format_time(spike.start)} to \{format_time(spike.end)}",
+      )
+      line("")
+      line(
+        "Spike ERROR + FATAL records: \{spike.errors}; occurrences omitted by capacity: \{omitted}.",
+      )
+      line("")
+      line("| Signature | Occurrences |")
+      line("| --- | ---: |")
+      for j in 0..<signatures.length() {
+        if j >= 10 {
+          break
+        }
+        let s = signatures[j]
+        line("| \{safe_markdown(s.text)} | \{s.count} |")
+      }
+      if signatures.is_empty() || signatures.length() > 10 || omitted > 0 {
+        line("")
+      }
+      if signatures.is_empty() {
+        if omitted > 0 {
+          line(
+            "No signatures were retained for this spike. This does not mean the spike had no errors: all \{omitted} error occurrence(s) were dropped after the shared signature capacity was reached.",
+          )
+        } else {
+          line("No signatures were retained for this spike.")
+        }
+      }
+      if signatures.length() > 10 {
+        line(
+          "Showing the top 10 of \{signatures.length()} retained signatures; the other \{signatures.length() - 10} are hidden by this display limit, not by capacity.",
+        )
+      }
+      if omitted > 0 && !signatures.is_empty() {
+        line(
+          "\{omitted} error occurrence(s) were omitted after the shared signature capacity limit was reached; they are included in the spike error total but cannot be attributed to a retained signature.",
+        )
+      }
+      line("")
+    }
+  }
   line("## Top error signatures (matching filters)")
   line("")
   line(
-    "Decimal runs become #; the message portion is capped at 512 characters (the level prefix is outside the cap). Counts cover retained signatures only.",
+    "Decimal runs become #; the message portion is capped at 512 characters (the level prefix is outside the cap). Counts cover retained signatures only. This ranking is global across all matching errors, not restricted to spikes.",
   )
   line("")
   line("| Signature | Occurrences |")

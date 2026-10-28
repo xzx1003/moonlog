@@ -46,9 +46,21 @@ Deterministic log evidence; spike detection does not establish a root cause.
 | --- | --- | ---: | ---: | ---: |
 | 2026-10-28 08:30:00Z | 2026-10-28 08:35:00Z | 4 | 4 | 0 |
 
+## Error signatures by spike
+
+Signatures count only ERROR/FATAL records inside each spike after filters. All spikes share one capacity (max_signatures = 1000), so the same signature in different spikes occupies separate slots. Tables show at most the top 10 retained signatures; capacity omissions are reported separately.
+
+### Spike 1: 2026-10-28 08:30:00Z to 2026-10-28 08:35:00Z
+
+Spike ERROR + FATAL records: 4; occurrences omitted by capacity: 0.
+
+| Signature | Occurrences |
+| --- | ---: |
+| ERROR: database timeout retry=\# | 4 |
+
 ## Top error signatures (matching filters)
 
-Decimal runs become #; the message portion is capped at 512 characters (the level prefix is outside the cap). Counts cover retained signatures only.
+Decimal runs become #; the message portion is capped at 512 characters (the level prefix is outside the cap). Counts cover retained signatures only. This ranking is global across all matching errors, not restricted to spikes.
 
 | Signature | Occurrences |
 | --- | ---: |

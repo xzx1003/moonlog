@@ -416,11 +416,22 @@ test "report is deterministic and raw backticks cannot close context fences" {
   let contexts = @cli.ContextCollector::new(cfg)
   contexts.feed("```", true)
   contexts.feed("<script>alert(1)</script>", false)
-  let first = @cli.markdown_report(analysis, contexts, "file[1].log")
-  assert_eq(first, @cli.markdown_report(analysis, contexts, "file[1].log"))
+  let spike_signatures = @cli.SpikeSignatureCollector::new(analysis)
+  for _ in 0..<3 {
+    ignore(spike_signatures.feed("2026-10-28 08:05:00 [ERROR] `<script>|` 123"))
+  }
+  let first = @cli.markdown_report(
+    analysis, contexts, spike_signatures, "file[1].log",
+  )
+  assert_eq(
+    first,
+    @cli.markdown_report(analysis, contexts, spike_signatures, "file[1].log"),
+  )
   assert_true(first.contains("````text"))
   assert_true(first.contains("&lt;script&gt;&#124;"))
   assert_true(first.contains("Target source lines: 1"))
+  assert_true(first.contains("## Error signatures by spike"))
+  assert_true(first.contains("### Spike 1:"))
 }
 
 ///|
@@ -442,4 +453,95 @@ test "level and keyword filters retain the observed healthy time baseline" {
   assert_eq(r.buckets[0].total, 0)
   assert_eq(r.spikes.length(), 1)
   assert_eq(r.spikes[0].baseline, 0.0)
+}
+
+///|
+test "spike signatures separate incidents and exclude baseline and end boundary" {
+  let config = @cli.Config::new(baseline_buckets=1, min_errors=3)
+  let analyzer = @cli.Analyzer::new(config)
+  let lines = [
+    "2026-10-28 00:00:00 [INFO] healthy", "2026-10-28 00:05:00 [ERROR] timeout 1",
+    "2026-10-28 00:05:00 [ERROR] timeout 2", "2026-10-28 00:05:00 [FATAL] crashed",
+    "2026-10-28 00:10:00 [ERROR] baseline noise", "2026-10-28 00:15:00 [ERROR] payment",
+    "2026-10-28 00:15:00 [ERROR] payment", "2026-10-28 00:15:00 [ERROR] payment",
+    "2026-10-28 00:15:00 [ERROR] payment",
+  ]
+  for raw in lines {
+    analyzer.feed(raw)
+  }
+  let analysis = analyzer.finish()
+  assert_eq(analysis.spikes.length(), 2)
+  let collector = @cli.SpikeSignatureCollector::new(analysis)
+  // Feed in reverse order to check that lookup does not assume sorted input.
+  for i = lines.length() - 1; i >= 0; i = i - 1 {
+    assert_eq(collector.feed(lines[i]), analysis.is_target(lines[i]))
+  }
+  let first = collector.signatures(0)
+  assert_eq(first.length(), 2)
+  assert_eq(first[0].text, "ERROR: timeout #")
+  assert_eq(first[0].count, 2)
+  assert_eq(first[1].text, "FATAL: crashed")
+  assert_eq(collector.signatures(1)[0].text, "ERROR: payment")
+  assert_eq(collector.signatures(1)[0].count, 4)
+  assert_eq(collector.omitted(0), 0)
+  assert_eq(collector.omitted(1), 0)
+}
+
+///|
+test "spike signature shared budget counts omissions and retained repeats" {
+  let config = @cli.Config::new(baseline_buckets=1, max_signatures=1)
+  let analyzer = @cli.Analyzer::new(config)
+  let lines = [
+    "2026-10-28 00:00:00 [INFO] healthy", "2026-10-28 00:05:00 [ERROR] a", "2026-10-28 00:05:00 [ERROR] b",
+    "2026-10-28 00:05:00 [ERROR] a", "2026-10-28 00:10:00 [INFO] healthy", "2026-10-28 00:15:00 [ERROR] a",
+    "2026-10-28 00:15:00 [ERROR] a", "2026-10-28 00:15:00 [ERROR] a",
+  ]
+  for raw in lines {
+    analyzer.feed(raw)
+  }
+  let analysis = analyzer.finish()
+  let collector = @cli.SpikeSignatureCollector::new(analysis)
+  for raw in lines {
+    ignore(collector.feed(raw))
+  }
+  assert_eq(collector.signatures(0).length(), 1)
+  assert_eq(collector.signatures(0)[0].count, 2)
+  assert_eq(collector.omitted(0), 1)
+  assert_eq(collector.signatures(1).length(), 0)
+  assert_eq(collector.omitted(1), 3)
+}
+
+///|
+test "spike signatures apply filters and deterministic tie ordering" {
+  let config = @cli.Config::new(baseline_buckets=1)
+  let filter : @cli.Filter = {
+    level: Some(Error),
+    keyword: "keep",
+    from: None,
+    to: None,
+  }
+  let analyzer = @cli.Analyzer::new(config, filter~)
+  let lines = [
+    "2026-10-28 00:00:00 [INFO] healthy", "2026-10-28 00:05:00 [ERROR] keep z", "2026-10-28 00:05:00 [ERROR] keep a",
+    "2026-10-28 00:05:00 [ERROR] keep b", "2026-10-28 00:05:00 [ERROR] discard",
+    "2026-10-28 00:05:00 [FATAL] keep fatal",
+  ]
+  for raw in lines {
+    analyzer.feed(raw)
+  }
+  let analysis = analyzer.finish()
+  let collector = @cli.SpikeSignatureCollector::new(analysis)
+  for raw in lines {
+    ignore(collector.feed(raw))
+  }
+  let signatures = collector.signatures(0)
+  assert_eq(signatures.length(), 3)
+  assert_eq(signatures[0].text, "ERROR: keep a")
+  assert_eq(signatures[1].text, "ERROR: keep b")
+  assert_eq(signatures[2].text, "ERROR: keep z")
+  assert_eq(collector.feed("stack trace without timestamp"), false)
+  let empty = @cli.SpikeSignatureCollector::new(
+    @cli.Analyzer::new(config).finish(),
+  )
+  assert_eq(empty.feed(lines[1]), false)
 }

@@ -29,6 +29,15 @@ class CLI(unittest.TestCase):
     def analyze(self, *options, ok=True):
         return self.run_cli('analyze', self.source, '--report', self.report, *options, ok=ok)
 
+    def spike_sections(self, report):
+        block = report.split('## Error signatures by spike\n', 1)[1]
+        block = block.split('## Top error signatures', 1)[0]
+        sections = {}
+        for piece in block.split('### Spike ')[1:]:
+            number, body = piece.split(':', 1)
+            sections[int(number)] = body
+        return sections
+
     def test_help_and_invalid_arguments(self):
         self.assertIn('offline incident', self.run_cli('--help').stdout)
         self.assertIn('0.1.0', self.run_cli('--version').stdout)
@@ -95,6 +104,79 @@ class CLI(unittest.TestCase):
         second = self.root / 'second.md'
         self.run_cli('analyze', self.source, '--report', second, '--context', '2')
         self.assertEqual(report, second.read_text())
+
+    def test_spike_signatures_rank_separately_and_exclude_baseline(self):
+        self.source.write_text(
+            '2026-10-28 08:00:00 [INFO] healthy\n'
+            '2026-10-28 08:00:00 [ERROR] baseline noise\n'
+            '2026-10-28 08:05:00 [ERROR] alpha\n'
+            '2026-10-28 08:05:00 [ERROR] alpha\n'
+            '2026-10-28 08:05:00 [ERROR] beta\n'
+            '2026-10-28 08:10:00 [INFO] healthy\n'
+            '2026-10-28 08:10:00 [ERROR] baseline noise\n'
+            '2026-10-28 08:15:00 [ERROR] gamma\n'
+            '2026-10-28 08:15:00 [ERROR] gamma\n'
+            '2026-10-28 08:15:00 [ERROR] delta\n',
+            encoding='utf8',
+        )
+        self.analyze('--baseline-buckets', '1', '--multiplier', '2',
+                     '--min-errors', '2', '--context', '0', '--max-samples', '0')
+        report = self.report.read_text()
+        self.assertIn('- Detected spikes: 2\n', report)
+        sections = self.spike_sections(report)
+        self.assertEqual(sorted(sections), [1, 2])
+        first, second = sections[1], sections[2]
+        self.assertIn('| ERROR: alpha | 2 |', first)
+        self.assertIn('| ERROR: beta | 1 |', first)
+        for text in ('gamma', 'delta', 'baseline noise'):
+            self.assertNotIn(text, first)
+        self.assertIn('| ERROR: gamma | 2 |', second)
+        self.assertIn('| ERROR: delta | 1 |', second)
+        for text in ('alpha', 'beta', 'baseline noise'):
+            self.assertNotIn(text, second)
+        global_ranking = report.split('## Top error signatures', 1)[1]
+        self.assertIn('| ERROR: baseline noise | 2 |', global_ranking)
+
+    def test_spike_signature_capacity_omissions_are_reported_per_spike(self):
+        self.source.write_text(
+            '2026-10-28 08:00:00 [INFO] healthy\n'
+            '2026-10-28 08:05:00 [ERROR] alpha\n'
+            '2026-10-28 08:05:00 [ERROR] beta\n'
+            '2026-10-28 08:05:00 [ERROR] alpha\n'
+            '2026-10-28 08:10:00 [INFO] healthy\n'
+            '2026-10-28 08:15:00 [ERROR] alpha\n'
+            '2026-10-28 08:15:00 [ERROR] alpha\n'
+            '2026-10-28 08:15:00 [ERROR] alpha\n',
+            encoding='utf8',
+        )
+        self.analyze('--baseline-buckets', '1', '--multiplier', '2',
+                     '--min-errors', '2', '--max-signatures', '1',
+                     '--context', '0', '--max-samples', '0')
+        sections = self.spike_sections(self.report.read_text())
+        first, second = sections[1], sections[2]
+        self.assertIn('| ERROR: alpha | 2 |', first)
+        self.assertNotIn('| ERROR: beta |', first)
+        self.assertIn('1 error occurrence(s) were omitted', first)
+        self.assertNotIn('| ERROR: alpha |', second)
+        self.assertIn('No signatures were retained for this spike.', second)
+        self.assertIn('does not mean the spike had no errors', second)
+        self.assertIn('3 error occurrence(s) were dropped', second)
+        self.assertNotIn('Showing the top 10', second)
+
+    def test_spike_signature_table_limits_display_to_top_ten(self):
+        lines = ['2026-10-28 08:00:00 [INFO] healthy']
+        lines += [f'2026-10-28 08:05:00 [ERROR] sig-{name}' for name in 'abcdefghijkl']
+        self.source.write_text('\n'.join(lines) + '\n', encoding='utf8')
+        self.analyze('--baseline-buckets', '1', '--multiplier', '2',
+                     '--min-errors', '2', '--context', '0', '--max-samples', '0')
+        section = self.spike_sections(self.report.read_text())[1]
+        rows = [line for line in section.splitlines() if line.startswith('| ERROR: ')]
+        self.assertEqual(len(rows), 10)
+        self.assertIn('| ERROR: sig-j | 1 |', rows)
+        self.assertNotIn('| ERROR: sig-k |', section)
+        self.assertIn('Showing the top 10 of 12 retained signatures', section)
+        self.assertIn('not by capacity', section)
+        self.assertNotIn('were omitted after the shared signature capacity', section)
 
     def test_jsonl_unicode_crlf_bom_and_final_line_without_newline(self):
         rows = [json.dumps({'ts': '2026-10-28T08:00:00Z', 'level': 'INFO', 'msg': '服务正常'}, ensure_ascii=False)]
