@@ -69,6 +69,55 @@ fn spike_summary_lines(summary : @engine.SpikeSummary) -> Array[String] {
 }
 
 ///|
+// Comparison lines for the selected signature. Timestamps and counts come from
+// the same values the Markdown and JSON reports print.
+fn signature_comparison_lines(
+  signature : String,
+  comparisons : Array[@engine.SignatureComparison],
+) -> Array[String] {
+  let lines : Array[String] = []
+  fn line(text : String) -> Unit {
+    lines.push(text)
+  }
+  line("Selected signature: \{terminal_escape(signature)}")
+  line(
+    "  Exact match on the complete normalized signature; counts apply the level/keyword/time filters; the pre-spike window can contain earlier incidents and is not a healthy window.",
+  )
+  if comparisons.is_empty() {
+    line(
+      "  No spikes met the rule, so there is no comparison window; this does not mean the selected signature never occurred.",
+    )
+    return lines
+  }
+  let mut counted = 0L
+  for i in 0..<comparisons.length() {
+    let c = comparisons[i]
+    let label = "  Spike \{i + 1}"
+    counted += c.before_count + c.spike_count
+    line(
+      "\{label} baseline: \{terminal_escape(@engine.format_time(c.before_start))} to \{terminal_escape(@engine.format_time(c.spike_start))} (end exclusive); \{c.before_minutes} min; \{c.before_count} occurrence(s); \{@engine.format_per_minute(c.before_per_minute)} per minute.",
+    )
+    line(
+      "\{label} spike: \{terminal_escape(@engine.format_time(c.spike_start))} to \{terminal_escape(@engine.format_time(c.spike_end))} (end exclusive); \{c.spike_minutes} min; \{c.spike_count} occurrence(s); \{@engine.format_per_minute(c.spike_per_minute)} per minute.",
+    )
+    match c.rate_multiplier {
+      Some(value) =>
+        line("\{label} rate multiplier: \{@engine.format_multiplier(value)}.")
+      None =>
+        line(
+          "\{label} rate multiplier: N/A (zero baseline: \{c.before_count} occurrence(s) over \{c.before_minutes} min; spike \{c.spike_count} over \{c.spike_minutes} min).",
+        )
+    }
+  }
+  if counted == 0L {
+    line(
+      "  The selected signature was not counted inside these windows; it can still appear elsewhere in the log.",
+    )
+  }
+  lines
+}
+
+///|
 // Terminal evidence after a successful write. Used by both formats so the
 // numbers cannot drift between the file and the console.
 fn terminal_summary(
@@ -104,6 +153,15 @@ fn terminal_summary(
       for text in spike_summary_lines(spike) {
         line(text)
       }
+    }
+  }
+  if summary.selected_signature is Some(signature) {
+    for
+      text in signature_comparison_lines(
+        signature,
+        summary.signature_comparisons,
+      ) {
+      line(text)
     }
   }
   line(

@@ -3,6 +3,7 @@ fn completed_result(
   lines : Array[String],
   config : @cli.Config,
   mode~ : @cli.ContextMode = Spikes,
+  signature~ : String? = None,
 ) -> @cli.ReportResult raise {
   let analyzer = @cli.Analyzer::new(config)
   for raw in lines {
@@ -11,12 +12,29 @@ fn completed_result(
   let analysis = analyzer.finish()
   let signatures = @cli.SpikeSignatureCollector::new(analysis)
   let contexts = @cli.ContextCollector::new(config)
+  let comparison = match signature {
+    Some(text) => Some(@cli.SignatureComparisonCollector::new(analysis, text))
+    None => None
+  }
   for raw in lines {
     ignore(signatures.feed(raw))
-    contexts.feed(raw, analysis.is_target(raw, mode~))
+    match comparison {
+      Some(collector) => collector.feed(raw)
+      None => ()
+    }
+    contexts.feed(raw, analysis.is_target(raw, mode~, signature~))
   }
   @cli.ReportResult::new(
-    analysis, contexts, signatures, mode, "中文\"\\\n.log",
+    analysis,
+    contexts,
+    signatures,
+    mode,
+    "中文\"\\\n.log",
+    selected_signature=signature,
+    signature_comparisons=match comparison {
+      Some(collector) => collector.comparisons()
+      None => []
+    },
   )
 }
 
@@ -86,6 +104,63 @@ test "structured output includes full rankings while terminal summary takes thre
   assert_eq(summary.spikes[0].top_signatures.length(), 3)
   assert_eq(summary.spikes[0].top_signatures[0].text, "ERROR: a")
   assert_eq(summary.spikes[0].omitted_signature_occurrences, 0)
+}
+
+///|
+test "selected signature exports comparisons without touching other statistics" {
+  let lines = [
+    "2026-10-28 08:00:00 [INFO] healthy", "2026-10-28 08:00:00 [ERROR] sig 1", "2026-10-28 08:05:00 [ERROR] sig 2",
+    "2026-10-28 08:10:00 [ERROR] sig 3", "2026-10-28 08:10:00 [ERROR] sig 4", "2026-10-28 08:10:00 [ERROR] other 9",
+    "2026-10-28 08:20:00 [ERROR] sig 5", "2026-10-28 08:25:00 [ERROR] sig 6", "2026-10-28 08:30:00 [ERROR] sig 7",
+    "2026-10-28 08:30:00 [ERROR] sig 8",
+  ]
+  let config = @cli.Config::new(
+    baseline_buckets=2,
+    multiplier=2,
+    min_errors=2,
+    context=0,
+  )
+  let plain = completed_result(lines, config)
+  let picked = completed_result(lines, config, signature=Some("ERROR: sig #"))
+  let before = @json.parse(plain.json_report())
+  let after = @json.parse(picked.json_report())
+  assert_eq(field(before, "selected_signature"), Json::null())
+  assert_eq(field(before, "signature_comparisons"), Json::array([]))
+  assert_eq(field(after, "selected_signature"), Json("ERROR: sig #"))
+  for key in ["spikes", "signatures", "level_counts", "buckets"] {
+    assert_eq(field(before, key).stringify(), field(after, key).stringify())
+  }
+  for
+    key in [
+      "log_error_ratio", "total", "matched", "untimed", "errors", "spike_count",
+      "omitted_targets", "omitted_global_signature_occurrences",
+    ] {
+    assert_eq(
+      field(field(before, "summary"), key).stringify(),
+      field(field(after, "summary"), key).stringify(),
+    )
+  }
+  let comparisons = items(field(after, "signature_comparisons"))
+  assert_eq(comparisons.length(), 1)
+  let first = comparisons[0]
+  assert_eq(field(first, "signature"), Json("ERROR: sig #"))
+  assert_eq(field(first, "before_start"), Json("2026-10-28 08:00:00Z"))
+  assert_eq(field(first, "spike_start"), Json("2026-10-28 08:10:00Z"))
+  assert_eq(field(first, "spike_end_exclusive"), Json("2026-10-28 08:15:00Z"))
+  assert_eq(field(first, "before_minutes"), Json("10"))
+  assert_eq(field(first, "spike_minutes"), Json("5"))
+  assert_eq(field(first, "before_count"), Json("2"))
+  assert_eq(field(first, "spike_count"), Json("2"))
+  assert_eq(field(first, "before_per_minute"), Json(0.2))
+  assert_eq(field(first, "spike_per_minute"), Json(0.4))
+  assert_eq(field(first, "rate_multiplier"), Json(2.0))
+  let summary = picked.summary()
+  assert_eq(summary.selected_signature, Some("ERROR: sig #"))
+  assert_eq(summary.signature_comparisons.length(), 1)
+  assert_eq(summary.spikes.length(), 1)
+  assert_eq(summary.spikes.length(), plain.summary().spikes.length())
+  assert_eq(plain.summary().selected_signature, None)
+  assert_eq(plain.summary().signature_comparisons.length(), 0)
 }
 
 ///|

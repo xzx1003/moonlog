@@ -103,9 +103,27 @@ Decimal runs become #; the message portion is capped at 512 characters (the leve
 | --- | ---: |
 | ERROR: database timeout retry=\# | 4 |
 
+## Selected signature comparison
+
+Selected signature: `ERROR: database timeout retry=\#`
+
+Matched exactly against the complete normalized signature: the level prefix plus the message with decimal runs replaced by `#`. Partial messages, bare message text and other levels do not match, and the value is used as given — it is never re-normalized.
+
+Counts apply the same level, keyword and time filters as spike detection. The pre-spike window is the configured 6 × 5 = 30 minutes before the spike start; both windows are left-closed and right-open. Earlier incidents can fall inside a pre-spike window, so it is a reference period and not a healthy window.
+
+### Spike 1: 2026-10-28 08:30:00Z to 2026-10-28 08:35:00Z
+
+| Window | Start UTC | End UTC (exclusive) | Minutes | Occurrences | Per minute |
+| --- | --- | --- | ---: | ---: | ---: |
+| Pre-spike baseline | 2026-10-28 08:00:00Z | 2026-10-28 08:30:00Z | 30 | 0 | 0.000 |
+| Spike | 2026-10-28 08:30:00Z | 2026-10-28 08:35:00Z | 5 | 4 | 0.800 |
+
+Rate multiplier: N/A — the baseline counted 0 occurrence(s) over 30 minute(s) (0.000 per minute) and the spike counted 4 over 5 minute(s) (0.800 per minute). A zero baseline makes the multiplier undefined, not zero.
+
 ## Context evidence
 
 Targets are ERROR + FATAL records inside detected spikes. Context lines are physical neighbors and are not filtered.
+Targets are further restricted to the exact signature `ERROR: database timeout retry=\#`; context lines stay unfiltered.
 
 ### Window 1
 

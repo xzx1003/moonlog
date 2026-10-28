@@ -66,12 +66,29 @@ pub fn format_ratio(ratio : LogErrorRatio) -> String {
 }
 
 ///|
+// Rates are per-minute shares of a compared window. Three decimals keep small
+// baselines readable without implying precision the integer counts do not have.
+pub fn format_per_minute(value : Double) -> String {
+  let thousandths = (value * 1000.0 + 0.5).to_int64()
+  "\{thousandths / 1000L}.\{(thousandths % 1000L).to_string().pad_start(3, '0')}"
+}
+
+///|
+// Only call this for a defined multiplier: a zero baseline has no ratio.
+pub fn format_multiplier(value : Double) -> String {
+  let hundredths = (value * 100.0 + 0.5).to_int64()
+  "\{hundredths / 100L}.\{(hundredths % 100L).to_string().pad_start(2, '0')}x"
+}
+
+///|
 pub fn markdown_report(
   analysis : Analysis,
   contexts : ContextCollector,
   spike_signatures : SpikeSignatureCollector,
   context_mode : ContextMode,
   source : String,
+  selected_signature~ : String? = None,
+  signature_comparisons~ : Array[SignatureComparison] = [],
 ) -> String {
   let out = StringBuilder()
   fn line(text : String) -> Unit {
@@ -331,6 +348,64 @@ pub fn markdown_report(
     line("| \{safe_markdown(s.text)} | \{s.count} |")
   }
   line("")
+  if selected_signature is Some(signature) {
+    line("## Selected signature comparison")
+    line("")
+    line("Selected signature: `\{safe_markdown(signature)}`")
+    line("")
+    line(
+      "Matched exactly against the complete normalized signature: the level prefix plus the message with decimal runs replaced by `#`. Partial messages, bare message text and other levels do not match, and the value is used as given — it is never re-normalized.",
+    )
+    line("")
+    line(
+      "Counts apply the same level, keyword and time filters as spike detection. The pre-spike window is the configured \{c.baseline_buckets} × \{c.bucket_minutes} = \{c.baseline_buckets.to_int64() * c.bucket_minutes.to_int64()} minutes before the spike start; both windows are left-closed and right-open. Earlier incidents can fall inside a pre-spike window, so it is a reference period and not a healthy window.",
+    )
+    line("")
+    if signature_comparisons.is_empty() {
+      line(
+        "No spikes met the rule, so there is no comparison window. This does not mean the selected signature never occurred: it can appear outside detected spikes or below the minimum error count.",
+      )
+      line("")
+    } else {
+      let mut counted = 0L
+      for i in 0..<signature_comparisons.length() {
+        let cmp = signature_comparisons[i]
+        counted += cmp.before_count + cmp.spike_count
+        line(
+          "### Spike \{i+1}: \{format_time(cmp.spike_start)} to \{format_time(cmp.spike_end)}",
+        )
+        line("")
+        line(
+          "| Window | Start UTC | End UTC (exclusive) | Minutes | Occurrences | Per minute |",
+        )
+        line("| --- | --- | --- | ---: | ---: | ---: |")
+        line(
+          "| Pre-spike baseline | \{format_time(cmp.before_start)} | \{format_time(cmp.spike_start)} | \{cmp.before_minutes} | \{cmp.before_count} | \{format_per_minute(cmp.before_per_minute)} |",
+        )
+        line(
+          "| Spike | \{format_time(cmp.spike_start)} | \{format_time(cmp.spike_end)} | \{cmp.spike_minutes} | \{cmp.spike_count} | \{format_per_minute(cmp.spike_per_minute)} |",
+        )
+        line("")
+        match cmp.rate_multiplier {
+          Some(value) =>
+            line(
+              "Rate multiplier: \{format_multiplier(value)} (\{format_per_minute(cmp.before_per_minute)} per minute before, \{format_per_minute(cmp.spike_per_minute)} per minute during).",
+            )
+          None =>
+            line(
+              "Rate multiplier: N/A — the baseline counted \{cmp.before_count} occurrence(s) over \{cmp.before_minutes} minute(s) (\{format_per_minute(cmp.before_per_minute)} per minute) and the spike counted \{cmp.spike_count} over \{cmp.spike_minutes} minute(s) (\{format_per_minute(cmp.spike_per_minute)} per minute). A zero baseline makes the multiplier undefined, not zero.",
+            )
+        }
+        line("")
+      }
+      if counted == 0L {
+        line(
+          "The selected signature was not counted inside any of these windows. This does not mean it is absent from the log: only the comparison windows above are counted.",
+        )
+        line("")
+      }
+    }
+  }
   line("## Context evidence")
   line("")
   line(
@@ -340,16 +415,28 @@ pub fn markdown_report(
       "Targets are matching ERROR + FATAL records, including when no spike is detected. Context lines are physical neighbors and are not filtered."
     },
   )
+  if selected_signature is Some(signature) {
+    line(
+      "Targets are further restricted to the exact signature `\{safe_markdown(signature)}`; context lines stay unfiltered.",
+    )
+  }
   line("")
   let windows = contexts.windows()
   if windows.is_empty() {
-    line(
-      if context_mode == Spikes {
-        "No sampled spike context. Raw stack/unknown lines are preserved only as surrounding evidence."
-      } else {
-        "No sampled error context. This can happen when no record matches the filters or the sample limit is 0."
-      },
-    )
+    match selected_signature {
+      Some(signature) =>
+        line(
+          "No context matched the selected signature `\{safe_markdown(signature)}` in this mode and filter set. Other signatures may still be failing; this only means no target line was sampled.",
+        )
+      None =>
+        line(
+          if context_mode == Spikes {
+            "No sampled spike context. Raw stack/unknown lines are preserved only as surrounding evidence."
+          } else {
+            "No sampled error context. This can happen when no record matches the filters or the sample limit is 0."
+          },
+        )
+    }
   }
   let fence = code_fence(windows)
   for i in 0..<windows.length() {

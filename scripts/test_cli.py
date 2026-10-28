@@ -16,6 +16,10 @@ ROOT = Path(__file__).resolve().parent.parent
 RATIO_LINE = re.compile(
     r'^Log error ratio \(all observed lines\): (\S+) \((\d+)/(\d+)\)\.$')
 SPIKE_RATIO_LINE = re.compile(r'^  Log error ratio: (\S+) \((\d+)/(\d+)\)\.$')
+TERMINAL_WINDOW = re.compile(
+    r'^(\S+ \S+) to (\S+ \S+) \(end exclusive\); (\d+) min; '
+    r'(\d+) occurrence\(s\); (\d+\.\d{3}) per minute\.$')
+TERMINAL_MULTIPLIER = re.compile(r'^(\d+\.\d{2}x)\.$')
 
 
 def percent(fraction):
@@ -24,6 +28,12 @@ def percent(fraction):
         return 'N/A'
     tenths = int(Decimal(fraction) * 1000 + Decimal('0.5'))
     return f'{tenths // 10}.{tenths % 10}%'
+
+
+def per_minute(value):
+    """Three-decimal per-minute rate, half-up, matching the CLI's format_per_minute."""
+    thousandths = int(Decimal(value) * 1000 + Decimal('0.5'))
+    return f'{thousandths // 1000}.{thousandths % 1000:03d}'
 
 
 class CLI(unittest.TestCase):
@@ -92,6 +102,70 @@ class CLI(unittest.TestCase):
             number, body = piece.split(':', 1)
             sections[int(number)] = body
         return sections
+
+    def comparison_section(self, report):
+        block = report.split('## Selected signature comparison\n', 1)[1]
+        return block.split('\n## ', 1)[0]
+
+    def comparison_windows(self, report):
+        """[(spike index, 'baseline'|'spike', start, end, minutes, count, rate)]."""
+        rows = []
+        index = None
+        for line in self.comparison_section(report).splitlines():
+            heading = re.match(r'^### Spike (\d+): ', line)
+            if heading:
+                index = int(heading.group(1))
+                continue
+            cells = [cell.strip() for cell in line.strip().strip('|').split('|')]
+            if line.startswith('| Pre-spike baseline |'):
+                rows.append((index, 'baseline', cells[1], cells[2], int(cells[3]),
+                             int(cells[4]), cells[5]))
+            elif line.startswith('| Spike |'):
+                rows.append((index, 'spike', cells[1], cells[2], int(cells[3]),
+                             int(cells[4]), cells[5]))
+        return rows
+
+    def comparison_spikes(self, report):
+        return [tuple(re.match(r'^### Spike (\d+): (\S+ \S+) to (\S+ \S+)$',
+                               line).groups())
+                for line in self.comparison_section(report).splitlines()
+                if line.startswith('### Spike ')]
+
+    def terminal_comparisons(self, stdout):
+        """{spike index: {'baseline': (start, end, minutes, count, rate), ...}}."""
+        found = {}
+        for line in stdout.splitlines():
+            if not line.startswith('  Spike '):
+                continue
+            head, _, rest = line.partition(': ')
+            parts = head.split()
+            if len(parts) < 3 or not parts[1].isdigit():
+                continue
+            entry = found.setdefault(int(parts[1]), {})
+            if parts[2] in ('baseline', 'spike'):
+                match = TERMINAL_WINDOW.match(rest)
+                self.assertIsNotNone(match, line)
+                entry[parts[2]] = (match.group(1), match.group(2),
+                                   int(match.group(3)), int(match.group(4)),
+                                   match.group(5))
+            elif parts[2] == 'rate':
+                entry['rate'] = rest
+        return found
+
+    def signature_log(self):
+        self.source.write_text(
+            '2026-10-28 08:00:00 [INFO] healthy\n'
+            '2026-10-28 08:00:00 [ERROR] sig 1\n'
+            '2026-10-28 08:05:00 [ERROR] sig 2\n'
+            '2026-10-28 08:10:00 [ERROR] sig 3\n'
+            '2026-10-28 08:10:00 [ERROR] sig 4\n'
+            '2026-10-28 08:10:00 [ERROR] other 9\n'
+            '2026-10-28 08:20:00 [ERROR] sig 5\n'
+            '2026-10-28 08:25:00 [ERROR] sig 6\n'
+            '2026-10-28 08:30:00 [ERROR] sig 7\n'
+            '2026-10-28 08:30:00 [ERROR] sig 8\n',
+            encoding='utf8',
+        )
 
     def test_help_and_invalid_arguments(self):
         self.assertIn('offline incident', self.run_cli('--help').stdout)
@@ -640,6 +714,224 @@ class CLI(unittest.TestCase):
         self.assertIn('Spike 1: 2026-10-28 08:30:00Z to 2026-10-28 08:35:00Z (end exclusive); '
                       'errors 4.', result.stdout)
 
+
+    def test_signature_argument_errors_fail_before_writing(self):
+        self.source.write_text('2026-10-28 08:00:00 [INFO] ready\n', encoding='utf8')
+        cases = [
+            (('--signature', ''), '--signature must not be empty'),
+            (('--signature', '   '), '--signature must not be empty'),
+            (('--signature',), 'missing value for --signature'),
+            (('--signature', 'ERROR: a', '--signature', 'ERROR: b'),
+             'duplicate option: --signature'),
+        ]
+        for args, expected in cases:
+            with self.subTest(args=args):
+                result = self.analyze(*args, ok=False)
+                self.assertIn(expected, result.stderr)
+                self.assertFalse(self.report.exists())
+
+    def test_help_lists_the_signature_option(self):
+        for args in [('--help',), ('analyze', '--help')]:
+            with self.subTest(args=args):
+                text = self.run_cli(*args).stdout
+                self.assertIn('--signature SIG', text)
+                self.assertIn('ERROR: database timeout retry=#', text)
+
+    def test_signature_matches_the_complete_normalized_signature_only(self):
+        self.source.write_bytes((ROOT / 'fixtures/incident.log').read_bytes())
+        exact = self.analyze(
+            '--signature', 'ERROR: database timeout retry=#', '--context', '0')
+        report = self.report.read_text()
+        self.assertIn('- Context targets sampled: 4 (limit 20); omitted: 0', report)
+        self.assertIn('Selected signature: `ERROR: database timeout retry=\\#`',
+                      report)
+        self.assertIn('  Spike 1 spike: 2026-10-28 08:30:00Z to '
+                      '2026-10-28 08:35:00Z (end exclusive); 5 min; '
+                      '4 occurrence(s); 0.800 per minute.', exact.stdout)
+        self.report.unlink()
+        for partial in ['database timeout', 'ERROR: database timeout',
+                        'FATAL: database timeout retry=#', 'error: database timeout retry=#']:
+            with self.subTest(signature=partial):
+                run = self.analyze('--signature', partial, '--context', '0')
+                report = self.report.read_text()
+                self.assertIn('- Context targets sampled: 0 (limit 20); omitted: 0',
+                              report)
+                self.assertIn(
+                    'The selected signature was not counted inside any of these windows',
+                    report)
+                self.assertIn('Rate multiplier: N/A', report)
+                self.assertIn('  Spike 1 spike: 2026-10-28 08:30:00Z to '
+                              '2026-10-28 08:35:00Z (end exclusive); 5 min; '
+                              '0 occurrence(s); 0.000 per minute.', run.stdout)
+                self.report.unlink()
+
+    def test_signature_limits_errors_mode_context_and_keeps_neighbors(self):
+        self.source.write_text(
+            '2026-10-28 08:00:00 [INFO] before\n'
+            '2026-10-28 08:01:00 [ERROR] keep 1\n'
+            'stack frame\n'
+            '2026-10-28 08:02:00 [INFO] quiet\n'
+            '2026-10-28 08:03:00 [ERROR] drop 1\n'
+            '2026-10-28 08:04:00 [INFO] quiet\n'
+            '2026-10-28 08:08:00 [ERROR] drop 2\n'
+            '2026-10-28 08:09:00 [ERROR] keep 2\n'
+            '2026-10-28 08:10:00 [INFO] after\n',
+            encoding='utf8',
+        )
+        self.analyze('--context-mode', 'errors', '--context', '1',
+                     '--signature', 'ERROR: keep #')
+        report = self.report.read_text()
+        self.assertIn('- Detected spikes: 0\n', report)
+        self.assertIn('- Context targets sampled: 2 (limit 20); omitted: 0', report)
+        self.assertIn('Targets are further restricted to the exact signature', report)
+        self.assertIn('Target source lines: 2.', report)
+        self.assertIn('Target source lines: 8.', report)
+        self.assertIn('  1: 2026-10-28 08:00:00 [INFO] before', report)
+        self.assertIn('> 2: 2026-10-28 08:01:00 [ERROR] keep 1', report)
+        self.assertIn('  3: stack frame', report)
+        self.assertIn('  7: 2026-10-28 08:08:00 [ERROR] drop 2', report)
+        self.assertIn('> 8: 2026-10-28 08:09:00 [ERROR] keep 2', report)
+        self.assertIn('  9: 2026-10-28 08:10:00 [INFO] after', report)
+        for line in report.splitlines():
+            self.assertNotIn(line, ('> 5: 2026-10-28 08:03:00 [ERROR] drop 1',
+                                    '> 7: 2026-10-28 08:08:00 [ERROR] drop 2'))
+
+    def test_signature_comparison_agrees_across_markdown_terminal_and_json(self):
+        self.signature_log()
+        json_path = self.root / 'report.json'
+        options = ('--signature', 'ERROR: sig #', '--baseline-buckets', '2',
+                   '--multiplier', '2', '--min-errors', '2', '--context', '0')
+        markdown_run = self.analyze(*options)
+        markdown = self.report.read_text()
+        json_run = self.analyze_to(json_path, '--format', 'json', *options)
+        document = json.loads(json_path.read_text())
+        self.assertEqual(document['selected_signature'], 'ERROR: sig #')
+        comparison = document['signature_comparisons'][0]
+        self.assertEqual(comparison['signature'], 'ERROR: sig #')
+
+        rows = self.comparison_windows(markdown)
+        self.assertEqual([row[:2] for row in rows],
+                         [(1, 'baseline'), (1, 'spike')])
+        self.assertEqual(self.comparison_spikes(markdown),
+                         [('1', comparison['spike_start'],
+                           comparison['spike_end_exclusive'])])
+        expected_baseline = (comparison['before_start'], comparison['spike_start'],
+                             int(comparison['before_minutes']),
+                             int(comparison['before_count']),
+                             per_minute(comparison['before_per_minute']))
+        expected_spike = (comparison['spike_start'], comparison['spike_end_exclusive'],
+                          int(comparison['spike_minutes']),
+                          int(comparison['spike_count']),
+                          per_minute(comparison['spike_per_minute']))
+        self.assertEqual(tuple(rows[0][2:]), expected_baseline)
+        self.assertEqual(tuple(rows[1][2:]), expected_spike)
+        self.assertEqual(expected_baseline,
+                         ('2026-10-28 08:00:00Z', '2026-10-28 08:10:00Z', 10, 2, '0.200'))
+        self.assertEqual(expected_spike,
+                         ('2026-10-28 08:10:00Z', '2026-10-28 08:15:00Z', 5, 2, '0.400'))
+        self.assertEqual(comparison['rate_multiplier'], 2.0)
+        self.assertIn('Rate multiplier: 2.00x', markdown)
+
+        terminal = self.terminal_comparisons(markdown_run.stdout)[1]
+        self.assertEqual(terminal['baseline'], expected_baseline)
+        self.assertEqual(terminal['spike'], expected_spike)
+        self.assertEqual(terminal['rate'], '2.00x.')
+        self.assertEqual(self.report_summary(markdown_run.stdout),
+                         self.report_summary(json_run.stdout))
+
+    def test_zero_baseline_reports_na_and_both_sides(self):
+        self.source.write_bytes((ROOT / 'fixtures/incident.log').read_bytes())
+        result = self.analyze('--signature', 'ERROR: database timeout retry=#')
+        report = self.report.read_text()
+        self.assertEqual(
+            self.comparison_windows(report)[0][2:],
+            ('2026-10-28 08:00:00Z', '2026-10-28 08:30:00Z', 30, 0, '0.000'))
+        self.assertIn('Rate multiplier: N/A', report)
+        self.assertIn('the baseline counted 0 occurrence(s) over 30 minute(s) '
+                      '(0.000 per minute) and the spike counted 4 over 5 minute(s) '
+                      '(0.800 per minute)', report)
+        self.assertIn('undefined, not zero', report)
+        self.assertIn('  Spike 1 rate multiplier: N/A (zero baseline: 0 occurrence(s) '
+                      'over 30 min; spike 4 over 5 min).', result.stdout)
+        self.report.unlink()
+        self.analyze('--format', 'json',
+                     '--signature', 'ERROR: database timeout retry=#')
+        comparison = json.loads(self.report.read_text())['signature_comparisons'][0]
+        self.assertIsNone(comparison['rate_multiplier'])
+        self.assertEqual(comparison['before_per_minute'], 0)
+
+    def test_comparison_window_follows_bucket_and_baseline_settings(self):
+        self.source.write_bytes((ROOT / 'fixtures/incident.log').read_bytes())
+        cases = [
+            (('--baseline-buckets', '6'), (30, 5, '0.000', '0.800')),
+            (('--baseline-buckets', '3'), (15, 5, '0.000', '0.800')),
+            (('--baseline-buckets', '2', '--bucket-minutes', '10'),
+             (20, 10, '0.000', '0.400')),
+        ]
+        for options, expected in cases:
+            with self.subTest(options=options):
+                self.analyze('--signature', 'ERROR: database timeout retry=#',
+                             '--context', '0', *options)
+                report = self.report.read_text()
+                self.report.unlink()
+                rows = self.comparison_windows(report)
+                self.assertEqual((rows[0][4], rows[1][4], rows[0][6], rows[1][6]),
+                                 expected)
+
+    def test_signature_without_spikes_never_claims_health(self):
+        self.source.write_text(
+            '2026-10-28 08:00:00 [INFO] before\n'
+            '2026-10-28 08:01:00 [ERROR] failed\n',
+            encoding='utf8',
+        )
+        result = self.analyze('--context-mode', 'errors',
+                              '--signature', 'ERROR: failed')
+        report = self.report.read_text()
+        self.assertIn('- Detected spikes: 0\n', report)
+        self.assertIn('there is no comparison window', report)
+        self.assertIn('does not mean the selected signature never occurred', report)
+        self.assertIn('- Context targets sampled: 1 (limit 20); omitted: 0', report)
+        self.assertIn('  No spikes met the rule, so there is no comparison window; '
+                      'this does not mean the selected signature never occurred.',
+                      result.stdout)
+        self.assertIn('does not imply the service was healthy', result.stdout)
+        self.assertEqual(self.comparison_windows(report), [])
+
+    def test_signature_does_not_change_original_statistics(self):
+        self.source.write_bytes((ROOT / 'fixtures/incident.log').read_bytes())
+        plain_run = self.analyze('--format', 'json', '--context', '2')
+        plain = json.loads(self.report.read_text())
+        self.report.unlink()
+        json_path = self.root / 'signed.json'
+        signed_run = self.analyze_to(json_path, '--format', 'json', '--context', '2',
+                                     '--signature', 'ERROR: database timeout retry=#')
+        signed = json.loads(json_path.read_text())
+        self.assertIsNone(plain['selected_signature'])
+        self.assertEqual(plain['signature_comparisons'], [])
+        for key in ('summary', 'spikes', 'buckets', 'observation_buckets',
+                    'signatures', 'level_counts', 'context_windows', 'filter',
+                    'config'):
+            self.assertEqual(plain[key], signed[key], key)
+        for document in (plain, signed):
+            document.pop('selected_signature')
+            document.pop('signature_comparisons')
+        self.assertEqual(plain, signed)
+        extra = [line for line in self.report_summary(signed_run.stdout)
+                 if line not in self.report_summary(plain_run.stdout)]
+        self.assertTrue(extra)
+        for line in extra:
+            self.assertTrue(line.startswith('Selected signature:') or
+                            line.startswith('  Exact match') or
+                            'Spike 1' in line, line)
+
+    def test_terminal_escapes_the_signature_but_json_keeps_it_raw(self):
+        self.source.write_text('2026-10-28 08:00:00 [INFO] ready\n', encoding='utf8')
+        payload = 'ERROR: pwn\u001b[2J'
+        result = self.analyze('--format', 'json', '--signature', payload)
+        self.assertIn('Selected signature: ERROR: pwn\\x1b[2J', result.stdout)
+        self.assertNotIn('\u001b', result.stdout)
+        document = json.loads(self.report.read_text())
+        self.assertEqual(document['selected_signature'], payload)
 
     def test_ratio_ignores_level_and_keyword_filters(self):
         self.source.write_bytes((ROOT / 'fixtures/incident.log').read_bytes())

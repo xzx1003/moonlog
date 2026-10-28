@@ -17,6 +17,8 @@ const Usage : String =
   #|  --max-line-bytes N   Maximum physical line bytes (default 65536)
   #|  --level LEVEL        DEBUG/INFO/WARN/ERROR/FATAL/OTHER
   #|  --keyword TEXT       Case-sensitive substring of the message
+  #|  --signature SIG      Exact full signature for context and comparison,
+  #|                       e.g. "ERROR: database timeout retry=#"
   #|  --from TIMESTAMP     Inclusive UTC minute, e.g. "2026-10-28 08:00:00"
   #|  --to TIMESTAMP       Inclusive UTC minute
   #|  --help               Show this help
@@ -88,6 +90,7 @@ fn run(args : Array[String]) -> Unit raise {
   let mut max_line_bytes = 65536
   let mut level : @engine.Level? = None
   let mut keyword = ""
+  let mut selected_signature : String? = None
   let mut from : Int64? = None
   let mut to : Int64? = None
   let seen : Map[String, Bool] = Map([])
@@ -130,6 +133,14 @@ fn run(args : Array[String]) -> Unit raise {
       "--max-signatures" => max_signatures = positive_or_zero(value, flag)
       "--max-line-bytes" => max_line_bytes = positive_or_zero(value, flag)
       "--keyword" => keyword = value
+      "--signature" => {
+        // The value is a complete normalized signature. Reject an empty one
+        // instead of silently normalizing or repairing user input.
+        if value.trim() == "" {
+          fail("--signature must not be empty")
+        }
+        selected_signature = Some(value)
+      }
       "--level" => {
         let parsed = @engine.parse_level(value)
         if parsed == @engine.Other && value != "OTHER" {
@@ -176,6 +187,13 @@ fn run(args : Array[String]) -> Unit raise {
   let analysis = analyzer.finish()
   let contexts = @engine.ContextCollector::new(config)
   let spike_signatures = @engine.SpikeSignatureCollector::new(analysis)
+  // The comparison collector exists only when a signature was requested; the
+  // spike signature collector stays unconditional.
+  let comparison = match selected_signature {
+    Some(signature) =>
+      Some(@engine.SignatureComparisonCollector::new(analysis, signature))
+    None => None
+  }
   let mut second_digest = 14695981039346656037UL
   let mut second_lines = 0
   @io.each_line(
@@ -184,21 +202,43 @@ fn run(args : Array[String]) -> Unit raise {
       second_digest = update_digest(second_digest, raw)
       second_lines += 1
       ignore(spike_signatures.feed(raw))
-      contexts.feed(raw, analysis.is_target(raw, mode=context_mode))
+      if comparison is Some(collector) {
+        collector.feed(raw)
+      }
+      contexts.feed(
+        raw,
+        analysis.is_target(raw, mode=context_mode, signature=selected_signature),
+      )
     },
     max_line_bytes~,
   )
   if first_digest != second_digest || second_lines != analysis.total {
     fail("input changed between passes; analyze a stable snapshot instead")
   }
+  let signature_comparisons = match comparison {
+    Some(collector) => collector.comparisons()
+    None => []
+  }
   let result = @engine.ReportResult::new(
-    analysis, contexts, spike_signatures, context_mode, source,
+    analysis,
+    contexts,
+    spike_signatures,
+    context_mode,
+    source,
+    selected_signature~,
+    signature_comparisons~,
   )
   let content = if format == "json" {
     result.json_report()
   } else {
     @engine.markdown_report(
-      analysis, contexts, spike_signatures, context_mode, source,
+      analysis,
+      contexts,
+      spike_signatures,
+      context_mode,
+      source,
+      selected_signature~,
+      signature_comparisons~,
     )
   }
   @io.write_report(report, content)

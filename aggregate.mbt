@@ -201,9 +201,13 @@ pub fn Analysis::is_target(
   self : Analysis,
   raw : String,
   mode~ : ContextMode = Spikes,
+  signature~ : String? = None,
 ) -> Bool {
   let record = parse_line(raw)
   if !record.level.is_error() || !self.filter.accepts(record) {
+    return false
+  }
+  if signature is Some(text) && error_signature(record) != text {
     return false
   }
   // In Errors mode, untimed errors are eligible only when the filter accepts

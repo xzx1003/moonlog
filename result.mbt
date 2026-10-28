@@ -7,6 +7,8 @@ pub struct ReportResult {
   spike_signatures : SpikeSignatureCollector
   context_mode : ContextMode
   source : String
+  selected_signature : String?
+  signature_comparisons : Array[SignatureComparison]
 }
 
 ///|
@@ -16,8 +18,18 @@ pub fn ReportResult::new(
   spike_signatures : SpikeSignatureCollector,
   context_mode : ContextMode,
   source : String,
+  selected_signature~ : String? = None,
+  signature_comparisons~ : Array[SignatureComparison] = [],
 ) -> ReportResult {
-  { analysis, contexts, spike_signatures, context_mode, source, }
+  {
+    analysis,
+    contexts,
+    spike_signatures,
+    context_mode,
+    source,
+    selected_signature,
+    signature_comparisons,
+  }
 }
 
 ///|
@@ -44,6 +56,8 @@ pub(all) struct TerminalSummary {
   omitted_targets : Int32
   omitted_global_signature_occurrences : Int32
   spikes : Array[SpikeSummary]
+  selected_signature : String?
+  signature_comparisons : Array[SignatureComparison]
 }
 
 ///|
@@ -82,6 +96,8 @@ pub fn ReportResult::summary(self : ReportResult) -> TerminalSummary {
     omitted_targets: self.contexts.omitted(),
     omitted_global_signature_occurrences: a.overflow_signatures,
     spikes,
+    selected_signature: self.selected_signature,
+    signature_comparisons: self.signature_comparisons,
   }
 }
 
@@ -144,6 +160,13 @@ pub fn ReportResult::to_json(self : ReportResult) -> Json {
       })
     })
   Json::object({
+    "selected_signature": match self.selected_signature {
+      Some(s) => Json(s)
+      None => Json::null()
+    },
+    "signature_comparisons": Json::array(
+      self.signature_comparisons.map(c => c.to_json()),
+    ),
     "schema_version": Json(1),
     "engine_version": Json("0.1.0"),
     "source": Json(self.source),

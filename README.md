@@ -14,6 +14,8 @@ MoonLog 是一个使用 MoonBit 编写的命令行工具，用于分析应用日
 make build
 ./bin/moonlog analyze fixtures/incident.log --report incident.md
 ./bin/moonlog analyze fixtures/incident.log --report incident.json --format json
+./bin/moonlog analyze fixtures/incident.log --report incident-signature.md \
+  --signature 'ERROR: database timeout retry=#'
 ./bin/moonlog --help
 ```
 
@@ -30,7 +32,7 @@ moonlog analyze app.log --report incident.json --format json
 
 ## 当前实现
 
-目前已完成日志解析、过滤、时间统计、错误尖峰检测、上下文提取和 Markdown 报告生成，并提供核心测试与 CLI 集成测试。
+目前已完成日志解析、过滤、时间统计、错误尖峰检测、上下文提取、指定签名的窗口对比和 Markdown 报告生成，并提供核心测试与 CLI 集成测试。
 
 **日志读取与解析**
 
@@ -69,6 +71,18 @@ moonlog analyze app.log --report incident.json --format json
 - 报告给出三个范围：全范围、每个尖峰区间（桶边界，结束不含）以及每个观察时间桶。
 
 这个数字是日志行比例，不是请求失败率：一个请求可能产生多行日志，错误还会触发重试等额外日志；日志量骤降时占比反而可能升高。它不能替代基于请求数的失败率，也不代表服务健康。
+
+**指定签名对比**
+
+`--signature` 把分析聚焦到一个完整的错误签名上，同时不改动尖峰检测口径。
+
+- 取值必须与 `error_signature` 的输出逐字符相等，例如 `--signature 'ERROR: database timeout retry=#'`。级别前缀属于签名本身，`FATAL: ...` 不会匹配 `ERROR: ...`；消息前缀或裸消息文本（如 `database timeout`）也不会匹配。
+- 工具不会再次归一化用户输入：数字不会被替换为 `#`，大小写与空格原样使用。空值、重复传参和缺少取值都会直接报错，且不会生成报告。
+- 上下文目标额外按该签名过滤：`spikes` 模式只在尖峰区间内的匹配行中取样，`errors` 模式在所有匹配行中取样，因此没有尖峰时也能取到该签名的上下文；周边上下文仍是未过滤的物理相邻行。
+- 第二遍扫描会额外逐行喂入一个比较收集器，为每个尖峰输出「尖峰前窗口」与「尖峰窗口」的对比：窗口起止、分钟数、出现次数、每分钟频率和频率倍数。
+- 尖峰前窗口固定为 `baseline_buckets × bucket_minutes` 分钟，尖峰窗口为尖峰区间；两者都是左闭右开，即 `[尖峰起点 - 窗口长度, 尖峰起点)` 与 `[尖峰起点, 尖峰结束)`。计数遵守既有的级别、关键词和时间过滤。
+- 尖峰前窗口可能包含更早的事故，它只是参考区间，不能当作「健康窗口」。基线次数为零时频率倍数没有定义，报告显示 `N/A`，并同时给出两侧的次数与频率。
+- 该参数不影响尖峰检测、尖峰排名、错误占比和原有的过滤统计；未指定时不创建比较收集器，报告也不出现该小节。
 
 **报告内容**
 
@@ -114,6 +128,7 @@ JSON 记录中的时间戳直接从 `ts` 字段读取，无需在 JSON 对象外
   --bucket-minutes 5 --baseline-buckets 6 --multiplier 3 --min-errors 3 \
   --context 10 --context-mode errors --max-samples 20 \
   --level ERROR --keyword timeout \
+  --signature 'ERROR: database timeout retry=#' \
   --from "2026-10-28 08:00:00Z" --to "2026-10-28 09:00:00Z"
 ```
 
@@ -132,6 +147,7 @@ JSON 记录中的时间戳直接从 `ts` 字段读取，无需在 JSON 对象外
 | `--max-samples` | 最多采集的上下文目标数，默认 20 |
 | `--level` | 按日志级别过滤 |
 | `--keyword` | 按消息内容过滤，区分大小写 |
+| `--signature` | 完整错误签名，用于限定上下文目标并输出各尖峰的对比 |
 | `--from` / `--to` | 限定分析的时间范围 |
 
 时间覆盖范围根据时间筛选条件内的全部有效时间戳确定，级别和关键词过滤不会改变时间轴。因此，即使健康期的日志没有匹配关键词，其对应的零错误时间桶仍可参与基线计算。
@@ -139,6 +155,13 @@ JSON 记录中的时间戳直接从 `ts` 字段读取，无需在 JSON 对象外
 时间桶中的错误计数则只统计满足全部过滤条件的记录。上下文采集使用另一套规则：目标行必须满足过滤条件；`spikes` 模式还要求位于尖峰区间内，`errors` 模式则接受所有匹配的 ERROR/FATAL 记录。周边上下文保留物理相邻行，不再应用这些过滤条件。
 
 `errors` 模式下，未指定 `--from` 或 `--to` 时，没有有效时间戳的 ERROR/FATAL 记录也可成为上下文目标；设置任一时间边界后，这些记录会被排除。`--context-mode` 不影响尖峰检测、尖峰区间或尖峰内签名排名。
+
+`--signature` 在上下文目标上再叠加一层精确匹配，并额外输出每个尖峰的签名对比。它的取值会原样使用，不做数字归一化，因此必须写成签名最终的样子。
+
+```bash
+./bin/moonlog analyze fixtures/incident.log --report incident.md \
+  --signature 'ERROR: database timeout retry=#'
+```
 
 ## 报告格式
 
@@ -158,12 +181,30 @@ JSON 记录中的时间戳直接从 `ts` 字段读取，无需在 JSON 对象外
 
 Markdown 报告包含本次分析的参数与过滤条件（含上下文模式）、日志计数、尖峰区间、每个尖峰内独立的签名排名（最多前 10 项）、全局签名排名、日志错误占比（全范围/各尖峰/各观察时间桶）和原始上下文，结构见 [`docs/example-report.md`](docs/example-report.md)。观察时间桶的表按前 50 个展示，超出时注明截断，完整数据在 JSON 中。
 
+指定 `--signature` 时，报告在全局排名之后多出一节「Selected signature comparison」：每个尖峰一组基线/尖峰窗口表格，加一行频率倍数。示例报告即由 `./bin/moonlog analyze fixtures/incident.log --report incident.md --signature 'ERROR: database timeout retry=#'` 生成。
+
 ### JSON
 
 JSON 报告由核心的 `ReportResult::json_report()` 生成，文件内容整体是一份合法的 JSON 文档。终端摘要只写到标准输出，不会混入文件，因此可以直接交给 `jq`、Python 的 `json.loads` 或其他工具处理。
 
 ```json
 {
+  "selected_signature": "ERROR: database timeout retry=#",
+  "signature_comparisons": [
+    {
+      "signature": "ERROR: database timeout retry=#",
+      "before_start": "2026-10-28 08:00:00Z",
+      "spike_start": "2026-10-28 08:30:00Z",
+      "spike_end_exclusive": "2026-10-28 08:35:00Z",
+      "before_minutes": "30",
+      "spike_minutes": "5",
+      "before_count": "0",
+      "spike_count": "4",
+      "before_per_minute": 0,
+      "spike_per_minute": 0.8,
+      "rate_multiplier": null
+    }
+  ],
   "schema_version": 1,
   "engine_version": "0.1.0",
   "source": "fixtures/incident.log",
@@ -241,7 +282,7 @@ JSON 报告由核心的 `ReportResult::json_report()` 生成，文件内容整�
 }
 ```
 
-示例为节选：`buckets`、`observation_buckets`、`spikes`、`signatures` 和 `context_windows[].lines` 只保留了部分条目。
+示例为节选：`buckets`、`observation_buckets`、`spikes`、`signatures` 和 `context_windows[].lines` 只保留了部分条目；`selected_signature` 与 `signature_comparisons` 来自同一份带 `--signature` 的运行。
 
 字段说明：
 
@@ -252,6 +293,8 @@ JSON 报告由核心的 `ReportResult::json_report()` 生成，文件内容整�
 | `source` | 输入路径，按用户传入原样保留 |
 | `config` | 本次分析的核心配置，含上下文模式 |
 | `filter` | 级别、关键词与时间边界，时间边界为包含端点 |
+| `selected_signature` | 本次指定的完整签名；未指定时为 `null`，且不参与任何统计 |
+| `signature_comparisons` | 每个尖峰的基线/尖峰对比：窗口起止、分钟数、次数、每分钟频率与频率倍数；未指定签名时为空数组 |
 | `time_semantics` | 时间语义：UTC、秒向下取整到分钟、过滤含端点、尖峰结束不含 |
 | `log_error_ratio_semantics` | 日志错误占比的统计口径说明，随报告一起输出 |
 | `summary` | 总行数、匹配数、无有效时间戳数、ERROR+FATAL 数、尖峰数、上下文采样/遗漏数、全局签名遗漏数；另有全范围 `log_error_ratio` |
@@ -273,6 +316,8 @@ JSON 报告由核心的 `ReportResult::json_report()` 生成，文件内容整�
 
 `total` 和 `errors` 是 64 位整数，JSON 中以十进制**字符串**输出以避免精度丢失，因此 `jq` 里需要 `tonumber` 或字符串比较；`fraction` 是普通数值。
 
+`signature_comparisons[]` 的字段沿用同一约定：`before_start`、`spike_start`、`spike_end_exclusive` 是 UTC 字符串，前窗口 `[before_start, spike_start)` 与尖峰窗口 `[spike_start, spike_end_exclusive)` 都是左闭右开；`before_minutes`、`spike_minutes`、`before_count`、`spike_count` 是 64 位整数，同样以十进制字符串输出；`before_per_minute` 与 `spike_per_minute` 是数值；`rate_multiplier` 在基线次数为 0 时为 `null`，表示倍数没有定义，而不是 0 倍。
+
 使用 JSON 时需要注意：
 
 - 时间统一为 UTC 字符串；`end_exclusive` 按定义不包含在区间内，桶的 `end_exclusive` 是桶边界。
@@ -281,6 +326,7 @@ JSON 报告由核心的 `ReportResult::json_report()` 生成，文件内容整�
 - `buckets` 是过滤后的统计，`observation_buckets` 和所有 `log_error_ratio` 是过滤前的观察口径：`--level`、`--keyword` 只影响前者。
 - `context_windows[].lines` 保存**未经过滤的原始上下文行**，`source`、签名等字段也保留输入原文。这些内容可能含业务数据或凭据，分享前请自行检查。
 - `config` 只覆盖核心 `result.config` 中的字段。`--max-line-bytes` 是宿主读取参数，在进入分析前生效，不在 `result.config` 中，因此 JSON 里没有它；JSON 不代表所有 CLI 参数都已导出。
+- `selected_signature` 只有在传入 `--signature` 时才有值，`signature_comparisons` 只有此时才非空。指定签名只影响上下文目标与这一组对比，`summary`、`spikes`、`buckets`、`signatures` 等原有统计保持不变。
 
 ### 终端摘要
 
@@ -294,16 +340,22 @@ Ratio scope: time-valid lines only, OTHER included; level/keyword filters do not
 Spike 1: 2026-10-28 08:30:00Z to 2026-10-28 08:35:00Z (end exclusive); errors 4.
   Log error ratio: 80.0% (4/5).
   Top signatures (1): ERROR: database timeout retry=# (4)
+Selected signature: ERROR: database timeout retry=#
+  Exact match on the complete normalized signature; counts apply the level/keyword/time filters; the pre-spike window can contain earlier incidents and is not a healthy window.
+  Spike 1 baseline: 2026-10-28 08:00:00Z to 2026-10-28 08:30:00Z (end exclusive); 30 min; 0 occurrence(s); 0.000 per minute.
+  Spike 1 spike: 2026-10-28 08:30:00Z to 2026-10-28 08:35:00Z (end exclusive); 5 min; 4 occurrence(s); 0.800 per minute.
+  Spike 1 rate multiplier: N/A (zero baseline: 0 occurrence(s) over 30 min; spike 4 over 5 min).
 Context mode: spikes; sampled 4; omitted 0.
 Markdown report written to incident.md.
 ```
 
-摘要包含扫描数、匹配数、错误数、尖峰数，全范围日志错误占比与每行的 `errors/total`，每个尖峰的区间（结束不含）、错误数、占比和前 3 类签名及次数，上下文模式与采样/遗漏数，以及签名容量遗漏提示。
+摘要包含扫描数、匹配数、错误数、尖峰数，全范围日志错误占比与每行的 `errors/total`，每个尖峰的区间（结束不含）、错误数、占比和前 3 类签名及次数，上下文模式与采样/遗漏数，以及签名容量遗漏提示。上面的示例带 `--signature`，因此还包含选定签名与每个尖峰的窗口对比。
 
 - 日志错误占比在分母为零时显示 `N/A`，并同时打印 `errors/total`，因此 `N/A` 与 `0.0%` 不会混淆。
 - 摘要里另起一行说明占比口径：只看时间有效行、先于级别/关键词过滤、不是请求失败率。尖峰行的 `errors` 是过滤后的错误数，占比括号里的两个数来自观察口径，两者在 `--level`/`--keyword` 生效时可能不同。
 - 每个尖峰最多展示 3 项签名。保留项超过 3 项时会明确说明其余项只是显示截断，不是容量遗漏；完整排名在 JSON 中。
 - 没有任何尖峰时，摘要只说明规则未命中，不代表服务正常。
+- 带 `--signature` 时追加选定签名与各尖峰的对比行：两侧窗口起止（结束不含）、分钟数、次数与每分钟频率；基线为零时倍数显示 `N/A`，并在同一行给出两侧的次数。没有尖峰时只说明没有比较窗口，不会声称该签名从未出现。
 - 签名文本、输入路径和报告路径来自用户输入，打印前会转义换行、回车、制表符、ESC 等控制字符（如 `\x1b`、`\n`、`\t`），避免日志内容伪造终端输出或触发转义序列。JSON 文件保留原文，不做这种展示转义。
 
 ## 流式处理与资源限制
@@ -312,7 +364,7 @@ MoonLog 使用两遍扫描完成分析，避免将全部原始日志长期保存
 
 1. **首次扫描：** 以 64 KiB 为单位读取文件，在 MoonBit 中按物理行切分，解析记录并累计统计数据。
 2. **尖峰分析：** 整理时间桶、补齐空桶，计算滑动基线并识别连续尖峰区间。
-3. **再次扫描：** 使用固定容量的 Ring Buffer 采集目标行及其前后文，并合并重叠或相邻的上下文窗口。
+3. **再次扫描：** 使用固定容量的 Ring Buffer 采集目标行及其前后文，并合并重叠或相邻的上下文窗口；指定 `--signature` 时同时为一个比较收集器逐行累计各尖峰两侧的次数。
 4. **生成报告：** 由同一次分析结果生成 Markdown 或 JSON 报告并写入文件，随后在终端打印摘要。
 
 两遍扫描会比较行数和滚动摘要，用于发现常见的文件变化。该检查不提供密码学完整性保证，因此建议分析稳定的日志副本。当前不支持实时追加日志。
@@ -370,7 +422,8 @@ python3 scripts/benchmark.py --lines 500000
 - 空输入、`errors` 模式、签名容量遗漏在 JSON 与终端摘要中的表现；
 - `--format` 的未知取值、重复传参和缺少取值，以及 JSON 报告的文件保护；
 - 终端摘要对 ESC、换行、回车、制表符以及含控制字符的输入路径的转义；
-- 日志错误占比：`--level ERROR` 与关键词过滤不缩小分母、`--from`/`--to` 生效、空桶显示 N/A 且 JSON 为 `null`、OTHER 行计入分母、无时间戳行不计入，以及 Markdown、终端、JSON 三处数值一致。
+- 日志错误占比：`--level ERROR` 与关键词过滤不缩小分母、`--from`/`--to` 生效、空桶显示 N/A 且 JSON 为 `null`、OTHER 行计入分母、无时间戳行不计入，以及 Markdown、终端、JSON 三处数值一致；
+- 指定签名：空值/重复/缺值报错、完整签名与级别前缀的精确匹配、`errors` 模式下的邻行保留、窗口左闭右开与时间边界、不同窗口时长、零基线显示 N/A、`--signature` 不改变原有统计，以及 Markdown、终端、JSON 的对比数值一致。
 
 一次本机基准测试的结果如下：
 
@@ -396,6 +449,7 @@ parser.mbt            日志解析、日期与时区处理、错误签名
 aggregate.mbt         流式统计、空桶补齐、滑动基线与尖峰检测
 error_ratio.mbt       日志错误占比：观察桶、区间聚合与 JSON 表示
 context.mbt           Ring Buffer、上下文窗口合并与采样限制
+signature_comparison.mbt  选定签名的基线/尖峰窗口计数与 JSON 表示
 report.mbt            Markdown 报告生成
 result.mbt            报告结果视图：JSON 导出、终端摘要数据
 cmd/main/             CLI 参数解析、两遍扫描编排、报告分发与终端摘要渲染
