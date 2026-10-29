@@ -1,0 +1,25 @@
+import {
+  "moonlog/cli/browser",
+  "moonlog/cli" @engine,
+  "moonbitlang/core/encoding/base64",
+}
+
+pkgtype(kind: "executable")
+
+options(
+  link: {
+    "wasm-gc": {
+      "exports": [
+        "moonlog_start",
+        "moonlog_feed_base64",
+        "moonlog_end_pass",
+        "moonlog_phase",
+        "moonlog_bytes_processed",
+        "moonlog_cancel",
+        "moonlog_result_json",
+        "moonlog_last_error",
+      ],
+      "use-js-builtin-string": true,
+    },
+  },
+)

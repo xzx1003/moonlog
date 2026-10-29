@@ -1,0 +1,5 @@
+import {
+  "moonlog/cli" @engine,
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/buffer",
+}

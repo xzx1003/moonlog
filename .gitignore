@@ -9,3 +9,6 @@ target
 # Local analysis output; curated examples live in docs/.
 /incident.md
 /dist/
+
+# Generated WASM artifact for the static web page; rebuild with make web-build.
+/web/generated/

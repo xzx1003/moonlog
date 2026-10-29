@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>MoonLog · 日志尖峰分析</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="styles.css?v=4" />
+  </head>
+  <body>
+    <header class="masthead">
+      <div class="shell masthead-inner">
+        <h1 class="brand">MoonLog</h1>
+        <p class="privacy">本地处理</p>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section class="intro" aria-labelledby="intro-title">
+        <h2 id="intro-title">日志分析</h2>
+        <p class="intro-copy">查看错误集中的时段和前后日志。文件仅在本机处理。</p>
+      </section>
+      <div class="sheet">
+        <form id="analysis-form" novalidate>
+          <fieldset id="controls">
+            <legend class="visually-hidden">分析配置</legend>
+
+            <div id="workbench-fields" class="workbench-fields">
+              <ol id="analysis-steps" class="stp-steps" aria-label="分析步骤">
+                <li aria-current="step" class="is-current"><span>01</span><b>日志文件</b></li>
+                <li><span>02</span><b>分析参数</b></li>
+                <li><span>03</span><b>筛选条件</b></li>
+              </ol>
+              <div id="drop-zone" class="field-group file-group step-panel" data-step="0">
+                <label class="group-label" for="file">日志文件</label><p class="file-title">选择或拖入日志</p><p class="file-description">支持单行文本和 JSON Lines</p>
+                <input
+                  id="file"
+                  name="file"
+                  aria-label="日志文件"
+                  type="file"
+                  aria-describedby="file-info file-hint"
+                  required
+                />
+                <p id="file-info" class="field-note file-info" hidden></p>
+                <p id="file-hint" class="field-note">文本日志 / JSON Lines · UTF-8 · 单文件 · 单行 ≤ 64 KiB</p><button id="load-example" class="button-quiet" type="button">使用示例日志</button>
+              </div>
+
+              <section class="field-group detect-group step-panel" data-step="1" hidden aria-labelledby="parameters-title"><h3 id="parameters-title" class="step-title" tabindex="-1">分析参数</h3><p class="step-note">可以直接使用默认值。</p>
+                <p class="group-label">检测参数</p>
+                <div class="field-grid detect-grid">
+                  <label>
+                    <span>桶宽（分钟）</span>
+                    <input
+                      id="bucket-minutes"
+                      type="number"
+                      value="5"
+                      min="1"
+                      max="1440"
+                      step="1"
+                      title="时间桶宽度，按 UTC 对齐"
+                      required
+                    />
+                  </label>
+
+                  <label>
+                    <span>基线桶数</span>
+                    <input
+                      id="baseline-buckets"
+                      type="number"
+                      value="6"
+                      min="1"
+                      max="1000"
+                      step="1"
+                      title="用之前多少个桶估计基线"
+                      required
+                    />
+                  </label>
+
+                  <label>
+                    <span>倍数</span>
+                    <input
+                      id="multiplier"
+                      type="number"
+                      value="3"
+                      min="2"
+                      max="1000"
+                      step="1"
+                      title="错误数超过基线 × 此倍数时记为尖峰"
+                      required
+                    />
+                  </label>
+
+                  <label>
+                    <span>最少错误数</span>
+                    <input
+                      id="min-errors"
+                      type="number"
+                      value="3"
+                      min="1"
+                      max="2147483647"
+                      step="1"
+                      title="尖峰桶内至少需要的错误数"
+                      required
+                    />
+                  </label>
+
+                  <label>
+                    <span>上下文行数</span>
+                    <input
+                      id="context-lines"
+                      type="number"
+                      value="10"
+                      min="0"
+                      max="100"
+                      step="1"
+                      title="每个目标行前后保留的原始行数"
+                      required
+                    />
+                  </label>
+
+                  <label>
+                    <span>样本上限</span>
+                    <input
+                      id="max-samples"
+                      type="number"
+                      value="20"
+                      min="0"
+                      max="100"
+                      step="1"
+                      title="最多保留的上下文目标数"
+                      required
+                    />
+                  </label>
+                </div>
+              </section>
+
+              <section class="field-group filter-group step-panel" data-step="2" hidden aria-labelledby="filters-title"><h3 id="filters-title" class="step-title" tabindex="-1">筛选条件</h3><p class="step-note">不填则分析全部日志。</p>
+                <p class="group-label">筛选</p>
+                <div class="field-grid filter-grid">
+                  <label>
+                    <span>级别</span>
+                    <select id="level" title="区分大小写；同时影响统计和尖峰检测">
+                      <option value="">全部级别</option>
+                      <option value="DEBUG">DEBUG</option>
+                      <option value="INFO">INFO</option>
+                      <option value="WARN">WARN</option>
+                      <option value="ERROR">ERROR</option>
+                      <option value="FATAL">FATAL</option>
+                      <option value="OTHER">OTHER</option>
+                    </select>
+                  </label>
+
+                  <label>
+                    <span>关键词</span>
+                    <input
+                      id="keyword"
+                      type="text"
+                      placeholder="包含的文本，区分大小写"
+                      title="留空表示不筛选"
+                    />
+                  </label>
+
+                  <label>
+                    <span>起始时间（UTC）</span>
+                    <input
+                      id="from"
+                      type="text"
+                      placeholder="2026-10-28 08:00:00"
+                      title="格式 YYYY-MM-DD HH:MM:SS，包含端点"
+                    />
+                  </label>
+
+                  <label>
+                    <span>结束时间（UTC）</span>
+                    <input
+                      id="to"
+                      type="text"
+                      placeholder="2026-10-28 09:00:00"
+                      title="格式 YYYY-MM-DD HH:MM:SS，包含端点"
+                    />
+                  </label>
+                </div>
+              </section>
+            </div>
+
+            <div id="workbench-summary" class="workbench-summary" hidden>
+              <p id="summary-line" class="summary-line"></p>
+              <button id="edit-params" class="button-quiet button-small" type="button">
+                更换文件 / 调整参数
+              </button>
+            </div>
+
+            <div id="actions" class="actions">
+              <button id="step-back" class="button-quiet" type="button" disabled>上一步</button><button id="start" type="submit">下一步</button>
+              <button id="cancel" class="button-quiet" type="button" disabled hidden>
+                取消
+              </button>
+              <p id="status" role="status" aria-live="polite"></p>
+            </div>
+          </fieldset>
+
+          <div id="error-box" class="error-box" role="alert" hidden></div>
+        </form>
+
+        <section id="progress-panel" class="progress-panel" hidden aria-live="polite">
+          <div class="progress-heading">
+            <span id="progress-phase"></span>
+            <span id="progress-percent" class="progress-percent">0%</span>
+          </div>
+          <progress id="progress-bar" max="100" value="0" aria-label="日志分析进度"></progress><div class="progress-meta"><span id="progress-file"></span><span id="progress-bytes"></span></div>
+          <p id="progress-detail" class="field-note"></p>
+        </section>
+
+        <section id="results" hidden aria-labelledby="results-title">
+          <h2 id="results-title" class="visually-hidden">分析结果</h2>
+
+          <div class="report-controls">
+            <p class="sensitive">
+              <strong>报告含原始日志，尚未脱敏。</strong>下载或分享前请检查。
+            </p>
+            <button id="download" type="button" disabled>下载 JSON</button>
+          </div>
+
+          <div id="overview"></div>
+
+          <section class="report-section" aria-labelledby="spikes-title">
+            <div class="section-head">
+              <h3 id="spikes-title">错误尖峰</h3><p class="section-note">点击时段查看错误签名。</p>
+            </div>
+            <div id="spikes"></div>
+          </section>
+
+          <section class="report-section" aria-labelledby="signatures-title">
+            <div class="section-head">
+              <h3 id="signatures-title">错误签名排名</h3>
+              <p class="section-note">当前筛选范围内的错误；相同签名合并，数字以 # 代替。</p>
+            </div>
+            <div id="signatures"></div>
+          </section>
+
+          <section class="report-section" aria-labelledby="context-title">
+            <div class="section-head">
+              <h3 id="context-title">日志上下文</h3>
+              <p class="section-note">目标行前后的原文，可能不匹配筛选条件。</p>
+            </div>
+            <div id="context-windows"></div>
+          </section>
+
+          <details class="effective-config">
+            <summary>参数与筛选</summary>
+            <div id="config-body"></div>
+          </details>
+        </section>
+      </div>
+    </main>
+
+    <footer class="shell">
+      <p>MoonLog 0.1.0 · 本地运行</p>
+    </footer>
+
+    <noscript>此页面需要启用 JavaScript 才能运行本地分析。</noscript>
+    <script type="module" src="app.js?v=4"></script>
+  </body>
+</html>

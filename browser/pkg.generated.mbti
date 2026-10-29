@@ -1,0 +1,39 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonlog/cli/browser"
+
+import {
+  "moonbitlang/core/buffer",
+  "moonlog/cli",
+}
+
+// Values
+
+// Errors
+
+// Types and methods
+pub struct Session {
+  analyzer : @cli.Analyzer
+  config : @cli.Config
+  source : String
+  pending : @buffer.Buffer
+  contexts : @cli.ContextCollector
+  mut analysis : @cli.Analysis?
+  mut signatures : @cli.SpikeSignatureCollector?
+  mut phase : Int32
+  mut lines : Int32
+  mut first_lines : Int32
+  mut digest : UInt64
+  mut first_digest : UInt64
+  mut bytes : Int64
+}
+pub fn Session::bytes_processed(Self) -> Int64
+pub fn Session::cancel(Self) -> Unit
+pub fn Session::end_pass(Self) -> Int32 raise
+pub fn Session::feed(Self, Bytes) -> Unit raise
+pub fn Session::new(String, @cli.Config, filter? : @cli.Filter, json_fields? : @cli.JsonFields) -> Self
+pub fn Session::phase(Self) -> Int32
+pub fn Session::result(Self) -> @cli.ReportResult raise
+
+// Type aliases
+
+// Traits

@@ -23,6 +23,8 @@ make build
 ./bin/moonlog --help
 ```
 
+另有实验性的浏览器版：`make web-build && make web-serve`，然后在浏览器打开 <http://localhost:8000/web/>。它通过 Web Worker 调用 MoonBit 核心的 wasm-gc 构建，文件只在本地处理，详见 [`web/README.md`](web/README.md)。
+
 构建完成后，可将 `bin/moonlog` 复制到 PATH 中的目录，之后直接运行：
 
 ```bash
@@ -456,10 +458,12 @@ MoonLog 使用多遍扫描完成分析，避免将全部原始日志长期保存
 make test
 make integration
 make check
+make web-test
+make web-bench WEB_BENCH_MB=64
 python3 scripts/benchmark.py --lines 500000
 ```
 
-`make test` 运行 MoonBit 核心断言；`make integration` 编译实际 CLI 并执行 Python 标准库集成测试；`make check` 将警告视为错误，并检查代码格式。
+`make test` 运行 MoonBit 核心断言；`make integration` 编译实际 CLI 并执行 Python 标准库集成测试；`make check` 将警告视为错误，并检查代码格式。`make web-test` 在 Node 中实际实例化 wasm-gc 桥接、执行同一套 JS 分块读取代码，并将报告与 CLI JSON 逐字段对比；`make web-bench` 通过打开的文件描述符按块读取合成文件，测量浏览器路径的两遍扫描吞吐。
 
 测试覆盖以下行为：
 
@@ -498,6 +502,22 @@ python3 scripts/benchmark.py --lines 500000
 
 示例报告见 [`docs/example-report.md`](docs/example-report.md)。
 
+## 浏览器版（实验性）
+
+浏览器版是纯静态 HTML/CSS/JS 页面，通过 Web Worker 调用 `web_bridge` 编译出的 wasm-gc 模块。日志解析、过滤、统计、尖峰检测、上下文采集和 JSON 报告生成仍由 MoonBit 执行，JavaScript 只负责分块读取 `File`、调用导出函数、显示进度、交互和下载。文件不会上传，也没有分析 SDK、遥测或远程资源。
+
+```bash
+make web-build    # 生成 web/generated/moonlog_web.wasm
+make web-test     # 用真实 WASM 执行桥接测试，并与 CLI JSON 对比
+make web-serve    # http://localhost:8000/web/
+```
+
+页面必须通过 HTTP 静态服务器打开，`file://` 方式无法创建 module Worker 或读取 WASM。浏览器需要支持 WebAssembly GC 和 JS String Builtins；当前已在本机 Qoder Desktop 内置 Chromium 150（Electron 43.1.1）中验证，其他浏览器尚未验证。
+
+当前只接入单文件、spikes 上下文模式和 first 采样，不展示多文件、distributed、指定签名比较、浏览器配置文件或脱敏。只下载 JSON 报告，不提供 Markdown 导出。报告和上下文可能包含敏感原文，网页版没有脱敏，下载或分享前请自行检查。
+
+桥接导出/导入约定、Base64 分块协议、Worker 消息和与 CLI 的来源名差异见 [`web/README.md`](web/README.md)。
+
 ## 代码结构
 
 ```text
@@ -511,21 +531,23 @@ input_sampling.mbt    多文件采样计划与带来源的上下文收集器
 signature_comparison.mbt  选定签名的基线/尖峰窗口计数与 JSON 表示
 report.mbt            Markdown 报告生成
 result.mbt            报告结果视图：JSON 导出、终端摘要数据
+browser/              WASM 会话：两遍扫描、分块与上下文收集
+web_bridge/           wasm-gc 导出桥接（字符串与 Base64 ABI）
+web/                  静态页面、Worker、文件分块与桥接 JS、WASM 测试
 cmd/main/             CLI 参数解析、多遍扫描编排、报告分发与终端摘要渲染
 nativeio/             MoonBit 流式读取与 C 字节 I/O 封装、输入身份校验
 moonlog_test.mbt      MoonBit 核心断言
 fixtures/             可复现的故障日志样例
-scripts/              CLI 集成测试与合成数据基准
+scripts/              CLI/浏览器集成测试、WASM 执行测试与合成数据基准
 ```
 
 ## 后续考虑
 
 当前工作重点是完善原生 CLI 的日志分析能力和运行可靠性。以下方向可根据实际使用需求继续评估：
 
-- **WASM 版本：** 复用现有核心逻辑，替换原生 I/O 宿主；目前尚未验证 WASM 兼容性。
+- **浏览器版完整能力：** 当前已有实验性的单文件页面（JSON 输出，见 [`web/README.md`](web/README.md)）；多文件、distributed 采样、指定签名比较、浏览器配置文件、脱敏和 Markdown 导出尚未接入，也未计划部署。
 - **实时日志分析：** 支持持续读取新增日志，并处理时间桶更新和持续性尖峰。
 - **更多日志格式：** 根据实际应用场景增加解析规则，避免引入难以预测的通用解析行为。
-- **可选的 Web 界面：** 为不习惯命令行的使用者提供报告查看与分析入口。
 - **更丰富的故障分析：** 在统计证据的基础上探索其他分析方法。当前版本不包含 AI 根因判断或告警推送。
 
 这些内容属于后续考虑范围，尚未承诺具体的实现时间。

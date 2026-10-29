@@ -1,0 +1,27 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonlog/cli/web_bridge"
+
+// Values
+pub fn moonlog_bytes_processed() -> Double
+
+pub fn moonlog_cancel() -> Unit
+
+pub fn moonlog_end_pass() -> Int32
+
+pub fn moonlog_feed_base64(String) -> Int32
+
+pub fn moonlog_last_error() -> String
+
+pub fn moonlog_phase() -> Int32
+
+pub fn moonlog_result_json() -> String
+
+pub fn moonlog_start(String, Int32, Int32, Int32, Int32, Int32, Int32, String, String, String, String) -> Int32
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits
