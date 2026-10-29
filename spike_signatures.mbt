@@ -26,7 +26,7 @@ pub fn SpikeSignatureCollector::feed(
   self : SpikeSignatureCollector,
   raw : String,
 ) -> Bool {
-  let record = parse_line(raw)
+  let record = parse_line(raw, fields=self.analysis.json_fields)
   if !record.level.is_error() || !self.analysis.filter.accepts(record) {
     return false
   }

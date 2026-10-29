@@ -161,7 +161,10 @@ pub fn format_time(minute : Int64) -> String {
 }
 
 ///|
-pub fn parse_line(raw : String) -> Record {
+pub fn parse_line(
+  raw : String,
+  fields~ : JsonFields = JsonFields::default(),
+) -> Record {
   let text = raw.trim().to_owned()
   let unknown = { minute: None, level: Other, message: raw, }
   if text.has_prefix("{") {
@@ -172,13 +175,10 @@ pub fn parse_line(raw : String) -> Record {
     ) catch {
       _ => return unknown
     }
-    if json
-      is {
-        "ts": String(ts),
-        "level": String(level),
-        "msg": String(message),
-        ..
-      } {
+    if json is Object(object) &&
+      object.get(fields.time) is Some(String(ts)) &&
+      object.get(fields.level) is Some(String(level)) &&
+      object.get(fields.message) is Some(String(message)) {
       return { minute: parse_time(ts), level: parse_level(level), message, }
     }
     return unknown

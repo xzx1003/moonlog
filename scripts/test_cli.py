@@ -839,6 +839,337 @@ class CLI(unittest.TestCase):
             'Showing the top 3 of 12 retained signatures; the other 9 are hidden '
             'by this display limit, not by capacity omissions.', result.stdout)
 
+    def custom_field_log(self, path=None):
+        path = path or self.source
+        path.write_text(
+            '{"timestamp":"2026-10-28T08:00:00Z","severity":"INFO","message":"healthy","ts":"bad","level":"ERROR","msg":"decoy"}\n'
+            '{"timestamp":"2026-10-28T08:05:00Z","severity":"INFO","message":"healthy","ts":"bad","level":"ERROR","msg":"decoy"}\n'
+            '{"timestamp":"2026-10-28T08:10:00Z","severity":"INFO","message":"healthy","ts":"bad","level":"ERROR","msg":"decoy"}\n'
+            '{"timestamp":"2026-10-28T08:15:00Z","severity":"ERROR","message":"db timeout retry=1","ts":"bad","level":"INFO","msg":"decoy"}\n'
+            '{"timestamp":"2026-10-28T08:15:00Z","severity":"ERROR","message":"db timeout retry=2","ts":"bad","level":"INFO","msg":"decoy"}\n'
+            '{"timestamp":"2026-10-28T08:15:00Z","severity":"ERROR","message":"db timeout retry=3","ts":"bad","level":"INFO","msg":"decoy"}\n'
+            '{"timestamp":"2026-10-28T08:15:00Z","severity":"INFO","message":"retry succeeded","ts":"bad","level":"ERROR","msg":"decoy"}\n'
+            '{"timestamp":"2026-10-28T08:20:00Z","severity":"INFO","message":"recovered","ts":"bad","level":"ERROR","msg":"decoy"}\n',
+            encoding='utf8',
+        )
+
+    CUSTOM_FIELDS = ('--json-time-field', 'timestamp',
+                     '--json-level-field', 'severity',
+                     '--json-message-field', 'message')
+
+    def test_custom_json_fields_drive_full_analysis(self):
+        self.custom_field_log()
+        result = self.analyze(
+            *self.CUSTOM_FIELDS,
+            '--baseline-buckets', '1', '--multiplier', '2', '--min-errors', '2',
+            '--context', '1', '--signature', 'ERROR: db timeout retry=#')
+        report = self.report.read_text()
+        self.assertIn(
+            'JSON fields: time=timestamp; level=severity; message=message '
+            '(exact top-level string keys; text logs unaffected).', result.stdout)
+        self.assertIn(
+            '- JSON fields (exact top-level string keys; text logs unaffected): '
+            'time=timestamp; level=severity; message=message\n', report)
+        # The ts/level/msg decoys would produce INFO lines and no spike on
+        # fallback; the custom mapping must win instead.
+        self.assertIn('- Detected spikes: 1\n', report)
+        self.assertIn('| 2026-10-28 08:15:00Z | 2026-10-28 08:20:00Z | 3 |', report)
+        self.assertIn('| ERROR | 3 |', report)
+        self.assertIn('| INFO | 5 |', report)
+        self.assertIn('| ERROR: db timeout retry=\\# | 3 |', report)
+        self.assertEqual(self.markdown_total_ratio(report), (3, 8, '37.5%'))
+        self.assertEqual(self.markdown_spike_ratios(report),
+                         [(1, '2026-10-28 08:15:00Z', '2026-10-28 08:20:00Z',
+                           3, 4, '75.0%')])
+        self.assertEqual(
+            [row[2:] for row in self.comparison_windows(report)],
+            [('2026-10-28 08:10:00Z', '2026-10-28 08:15:00Z', 5, 0, '0.000'),
+             ('2026-10-28 08:15:00Z', '2026-10-28 08:20:00Z', 5, 3, '0.600')])
+        # Context targets and raw surrounding lines survive the mapping.
+        self.assertIn('- Context targets sampled: 3 (limit 20); omitted: 0', report)
+        self.assertIn('Target source lines: 4, 5, 6.', report)
+        self.assertIn(
+            '> 4: {"timestamp":"2026-10-28T08:15:00Z","severity":"ERROR",'
+            '"message":"db timeout retry=1","ts":"bad","level":"INFO","msg":"decoy"}',
+            report)
+        self.assertIn('  3:', report)
+        self.assertIn('  7:', report)
+
+        json_path = self.root / 'custom.json'
+        self.analyze_to(
+            json_path, '--format', 'json', *self.CUSTOM_FIELDS,
+            '--baseline-buckets', '1', '--multiplier', '2', '--min-errors', '2',
+            '--context', '1', '--signature', 'ERROR: db timeout retry=#')
+        document = json.loads(json_path.read_text())
+        self.assertEqual(document['json_fields'],
+                         {'time': 'timestamp', 'level': 'severity',
+                          'message': 'message'})
+        self.assertEqual(document['summary']['total'], 8)
+        self.assertEqual(document['summary']['errors'], 3)
+        self.assertEqual(document['summary']['spike_count'], 1)
+        self.assertEqual(document['spikes'][0]['signatures'],
+                         [{'text': 'ERROR: db timeout retry=#', 'count': 3}])
+        comparison = document['signature_comparisons'][0]
+        self.assertEqual((comparison['before_count'], comparison['spike_count']),
+                         ('0', '3'))
+        self.assertEqual(document['context_windows'][0]['targets'], [4, 5, 6])
+
+    def test_json_field_config_and_cli_overrides(self):
+        config = self.root / 'moonlog.json'
+        config.write_text(json.dumps({
+            'json-time-field': 'when',
+            'json-level-field': 'severity',
+            'json-message-field': 'body',
+        }), encoding='utf8')
+        rows = [
+            '{"when":"2026-10-28T08:00:00Z","severity":"INFO","body":"healthy"}',
+            '{"when":"2026-10-28T08:05:00Z","severity":"ERROR","body":"boom 1"}',
+            '{"when":"2026-10-28T08:05:00Z","severity":"ERROR","body":"boom 2"}',
+        ]
+        self.source.write_text('\n'.join(rows) + '\n', encoding='utf8')
+        result = self.run_cli('analyze', self.source, '--config', config,
+                              '--report', self.report, '--baseline-buckets', '1',
+                              '--multiplier', '2', '--min-errors', '2',
+                              '--context', '0')
+        report = self.report.read_text()
+        self.assertIn(
+            'JSON fields: time=when; level=severity; message=body',
+            result.stdout)
+        self.assertIn('time=when; level=severity; message=body', report)
+        self.assertIn('- Detected spikes: 1\n', report)
+        self.assertIn('| ERROR: boom \\# | 2 |', report)
+
+        # A partial config keeps the built-in default for the missing field.
+        config.write_text(json.dumps({
+            'json-time-field': 'when',
+            'json-level-field': 'severity',
+        }), encoding='utf8')
+        self.source.write_text(
+            '{"when":"2026-10-28T08:00:00Z","severity":"INFO","msg":"healthy"}\n'
+            '{"when":"2026-10-28T08:05:00Z","severity":"ERROR","msg":"boom 3"}\n'
+            '{"when":"2026-10-28T08:05:00Z","severity":"ERROR","msg":"boom 4"}\n',
+            encoding='utf8')
+        self.report.unlink()
+        self.run_cli('analyze', self.source, '--config', config,
+                     '--report', self.report, '--baseline-buckets', '1',
+                     '--multiplier', '2', '--min-errors', '2', '--context', '0')
+        report = self.report.read_text()
+        self.assertIn(
+            'time=when; level=severity; message=msg', report)
+        self.assertIn('- Detected spikes: 1\n', report)
+        self.assertIn('| ERROR: boom \\# | 2 |', report)
+
+        # CLI wins over config for one field while the other config keys stay.
+        self.source.write_text(
+            '{"stamp":"2026-10-28T08:00:00Z","severity":"INFO","body":"healthy"}\n'
+            '{"stamp":"2026-10-28T08:05:00Z","severity":"ERROR","body":"boom 5"}\n'
+            '{"stamp":"2026-10-28T08:05:00Z","severity":"ERROR","body":"boom 6"}\n',
+            encoding='utf8')
+        self.report.unlink()
+        config.write_text(json.dumps({
+            'json-time-field': 'when',
+            'json-level-field': 'severity',
+            'json-message-field': 'body',
+        }), encoding='utf8')
+        json_path = self.root / 'override.json'
+        self.run_cli('analyze', self.source, '--config', config,
+                     '--report', json_path, '--format', 'json',
+                     '--json-time-field', 'stamp',
+                     '--baseline-buckets', '1', '--multiplier', '2',
+                     '--min-errors', '2', '--context', '0')
+        document = json.loads(json_path.read_text())
+        self.assertEqual(document['json_fields'],
+                         {'time': 'stamp', 'level': 'severity',
+                          'message': 'body'})
+        self.assertEqual(document['summary']['errors'], 2)
+        self.assertEqual(document['summary']['spike_count'], 1)
+
+        # A single CLI override with everything else at defaults.
+        self.source.write_text(
+            '{"when":"2026-10-28T08:00:00Z","level":"INFO","msg":"healthy"}\n'
+            '{"when":"2026-10-28T08:05:00Z","level":"ERROR","msg":"boom 7"}\n'
+            '{"when":"2026-10-28T08:05:00Z","level":"ERROR","msg":"boom 8"}\n',
+            encoding='utf8')
+        self.analyze('--json-time-field', 'when', '--baseline-buckets', '1',
+                     '--multiplier', '2', '--min-errors', '2', '--context', '0')
+        report = self.report.read_text()
+        self.assertIn('time=when; level=level; message=msg', report)
+        self.assertIn('| ERROR: boom \\# | 2 |', report)
+
+    def test_missing_nonstring_and_nested_json_fields_are_not_parsed(self):
+        self.source.write_text(
+            '{"when":"2026-10-28T08:00:00Z","severity":"ERROR"}\n'
+            '{"when":"2026-10-28T08:05:00Z","severity":3,"body":"bad"}\n'
+            '{"when":"2026-10-28T08:05:00Z","severity":"ERROR","body":123}\n'
+            '{"outer":{"when":"2026-10-28T08:05:00Z","severity":"ERROR","body":"nested"}}\n'
+            '{"when":123,"severity":"ERROR","body":"numeric time"}\n'
+            '{"when":"2026-10-28T08:05:00Z","severity":"error","body":"lowercase"}\n',
+            encoding='utf8')
+        self.analyze('--format', 'json',
+                     '--json-time-field', 'when',
+                     '--json-level-field', 'severity',
+                     '--json-message-field', 'body')
+        document = json.loads(self.report.read_text())
+        self.assertEqual(document['json_fields'],
+                         {'time': 'when', 'level': 'severity',
+                          'message': 'body'})
+        self.assertEqual(document['summary']['total'], 6)
+        self.assertEqual(document['summary']['untimed'], 5)
+        self.assertEqual(document['summary']['errors'], 0)
+        self.assertEqual(document['summary']['spike_count'], 0)
+        self.assertEqual(document['level_counts']['ERROR'], 0)
+        self.assertEqual(document['level_counts']['OTHER'], 6)
+        self.assertEqual(document['spikes'], [])
+        self.assertEqual(document['signatures'], [])
+        # Only the lowercase-level line kept a valid timestamp, and it stays OTHER.
+        ratio = document['summary']['log_error_ratio']
+        self.assertEqual((ratio['errors'], ratio['total'], ratio['fraction']),
+                         ('0', '1', 0.0))
+
+        # Dotted names are literal top-level keys, never nested paths.
+        self.source.write_text(
+            '{"a.b":"2026-10-28T08:00:00Z","级别":"ERROR","内容":"literal"}\n',
+            encoding='utf8')
+        json_path = self.root / 'literal.json'
+        self.analyze_to(json_path, '--format', 'json',
+                        '--json-time-field', 'a.b',
+                        '--json-level-field', '级别',
+                        '--json-message-field', '内容')
+        document = json.loads(json_path.read_text())
+        self.assertEqual(document['json_fields'],
+                         {'time': 'a.b', 'level': '级别', 'message': '内容'})
+        self.assertEqual(document['summary']['errors'], 1)
+        self.assertEqual(document['signatures'],
+                         [{'text': 'ERROR: literal', 'count': 1}])
+
+    def test_json_field_defaults_mixed_text_and_multifile_distributed(self):
+        # Defaults stay compatible and text lines ignore any mapping.
+        self.source.write_text(
+            '2026-10-28 08:00:00 [INFO] text healthy\n'
+            '{"ts":"2026-10-28T08:00:00Z","level":"INFO","msg":"json healthy"}\n'
+            '2026-10-28 08:05:00 [ERROR] text boom 1\n'
+            '{"ts":"2026-10-28T08:05:00Z","level":"ERROR","msg":"json boom 2"}\n'
+            '2026-10-28 08:05:00 [ERROR] text boom 3\n',
+            encoding='utf8')
+        result = self.analyze('--baseline-buckets', '1', '--multiplier', '2',
+                              '--min-errors', '2', '--context', '0')
+        report = self.report.read_text()
+        self.assertIn('time=ts; level=level; message=msg', report)
+        self.assertIn('time=ts; level=level; message=msg', result.stdout)
+        self.assertIn('| ERROR | 3 |', report)
+        self.assertIn('| ERROR: text boom \\# | 2 |', report)
+        self.assertIn('| ERROR: json boom \\# | 1 |', report)
+
+        # The same mixed file with custom JSON keys still parses text lines.
+        self.source.write_text(
+            '2026-10-28 08:00:00 [INFO] text healthy\n'
+            '{"when":"2026-10-28T08:00:00Z","severity":"INFO","body":"json healthy"}\n'
+            '2026-10-28 08:05:00 [ERROR] text boom 1\n'
+            '{"when":"2026-10-28T08:05:00Z","severity":"ERROR","body":"json boom 2"}\n'
+            '2026-10-28 08:05:00 [ERROR] text boom 3\n',
+            encoding='utf8')
+        self.report.unlink()
+        self.analyze('--json-time-field', 'when',
+                     '--json-level-field', 'severity',
+                     '--json-message-field', 'body', '--baseline-buckets', '1',
+                     '--multiplier', '2', '--min-errors', '2', '--context', '0')
+        report = self.report.read_text()
+        self.assertIn('time=when; level=severity; message=body', report)
+        self.assertIn('| ERROR | 3 |', report)
+        self.assertIn('| ERROR: text boom \\# | 2 |', report)
+        self.assertIn('| ERROR: json boom \\# | 1 |', report)
+
+        # Multi-file distributed sampling shares one custom mapping.
+        first = self.root / 'first.log'
+        second = self.root / 'second.log'
+        first.write_text(
+            '{"when":"2026-10-28T08:00:00Z","severity":"INFO","body":"healthy"}\n'
+            '{"when":"2026-10-28T08:05:00Z","severity":"ERROR","body":"boom 1"}\n'
+            '{"when":"2026-10-28T08:05:00Z","severity":"ERROR","body":"boom 2"}\n',
+            encoding='utf8')
+        second.write_text(
+            '{"when":"2026-10-28T08:05:00Z","severity":"ERROR","body":"boom 3"}\n'
+            '{"when":"2026-10-28T08:05:00Z","severity":"ERROR","body":"boom 4"}\n',
+            encoding='utf8')
+        json_path = self.root / 'distributed.json'
+        self.run_cli('analyze', first, second, '--report', json_path,
+                     '--format', 'json',
+                     '--json-time-field', 'when',
+                     '--json-level-field', 'severity',
+                     '--json-message-field', 'body',
+                     '--sampling', 'distributed', '--max-samples', '2',
+                     '--baseline-buckets', '1', '--multiplier', '2',
+                     '--min-errors', '2', '--context', '0')
+        document = json.loads(json_path.read_text())
+        self.assertEqual(document['json_fields'],
+                         {'time': 'when', 'level': 'severity',
+                          'message': 'body'})
+        self.assertEqual(document['sampling'], 'distributed')
+        self.assertEqual(document['scans'], 3)
+        self.assertEqual(document['summary']['errors'], 4)
+        self.assertEqual(document['summary']['spike_count'], 1)
+        self.assertEqual(document['summary']['sampled_targets'], 2)
+        self.assertEqual(document['spikes'][0]['signatures'],
+                         [{'text': 'ERROR: boom #', 'count': 4}])
+        self.assertEqual(
+            {window['source'] for window in document['context_windows']},
+            {str(first), str(second)})
+
+    def test_json_field_argument_and_name_validation(self):
+        self.source.write_text('2026-10-28 08:00:00 [INFO] ready\n',
+                               encoding='utf8')
+        cases = [
+            (('--json-time-field',), 'missing value for --json-time-field'),
+            (('--json-time-field', 'a', '--json-time-field', 'b'),
+             'duplicate option: --json-time-field'),
+            (('--json-level-field', ''), 'JSON field names must be nonblank'),
+            (('--json-message-field', 'bad\nname'),
+             'JSON field names must not contain control characters'),
+            (('--json-time-field', 'x' * 257), 'at most 256 UTF-16'),
+            (('--json-time-field', 'same', '--json-level-field', 'same'),
+             'must be distinct'),
+        ]
+        for args, expected in cases:
+            with self.subTest(args=args):
+                result = self.analyze(*args, ok=False)
+                self.assertIn(expected, result.stderr)
+                self.assertNotIn('.mbt:', result.stderr)
+                self.assertFalse(self.report.exists())
+
+        config = self.root / 'moonlog.json'
+        config_cases = [
+            ('{"json-time-field": 3}', 'config json-time-field must be a string'),
+            ('{"json-level-field": ""}',
+             'config JSON field mapping is invalid: JSON field names must be nonblank'),
+            ('{"json-message-field": "a\\u007fb"}',
+             'config JSON field mapping is invalid: JSON field names must not contain control characters'),
+            ('{"json-time-field": "%s"}' % ('x' * 257),
+             'config JSON field mapping is invalid: JSON field names must be nonblank and at most 256'),
+            ('{"json-time-field": "a", "json-level-field": "a"}',
+             'config JSON field mapping is invalid: JSON time, level and message field names must be distinct'),
+            ('{"json-other-field": "x"}',
+             'unknown or forbidden config key: json-other-field'),
+        ]
+        for raw, expected in config_cases:
+            with self.subTest(raw=raw):
+                config.write_text(raw, encoding='utf8')
+                result = self.analyze('--config', config, ok=False)
+                self.assertIn(expected, result.stderr)
+                self.assertNotIn('.mbt:', result.stderr)
+                self.assertFalse(self.report.exists())
+
+    def test_help_documents_json_field_options(self):
+        for args in [('--help',), ('analyze', '--help')]:
+            with self.subTest(args=args):
+                text = self.run_cli(*args).stdout
+                self.assertIn('--json-time-field K', text)
+                self.assertIn('--json-level-field K', text)
+                self.assertIn('--json-message-field K', text)
+                self.assertIn('exact top-level string keys', text)
+                self.assertIn('default ts', text)
+                self.assertIn('default level', text)
+                self.assertIn('default msg', text)
+
     def test_invalid_or_missing_format_fails_before_writing(self):
         self.source.write_text('2026-10-28 08:00:00 [INFO] ready\n', encoding='utf8')
         cases = [

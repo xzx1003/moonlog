@@ -10,5 +10,8 @@
   "max-buckets": 100000,
   "max-signatures": 1000,
   "max-line-bytes": 65536,
+  "json-time-field": "ts",
+  "json-level-field": "level",
+  "json-message-field": "msg",
   "format": "markdown"
 }

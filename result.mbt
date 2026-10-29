@@ -68,6 +68,7 @@ pub(all) struct TerminalSummary {
   sampling : SamplingMode
   scans : Int32
   sample_limit : Int32
+  json_fields : JsonFields
   total : Int32
   matched : Int32
   untimed : Int32
@@ -115,6 +116,7 @@ pub fn ReportResult::summary(self : ReportResult) -> TerminalSummary {
     sampling: self.sampling,
     scans: self.scans,
     sample_limit: self.sample_limit,
+    json_fields: a.json_fields,
     total: a.total,
     matched: a.matched,
     untimed: a.untimed,
@@ -192,6 +194,7 @@ pub fn ReportResult::to_json(self : ReportResult) -> Json {
     "signature_comparisons": Json::array(
       self.signature_comparisons.map(c => c.to_json()),
     ),
+    "json_fields": a.json_fields.to_json(),
     "schema_version": Json(1),
     "engine_version": Json("0.1.0"),
     "source": match self.sources.length() {

@@ -135,6 +135,9 @@ fn terminal_summary(
     line("Sources: \{summary.sources.map(s => terminal_escape(s)).join(", ")}")
   }
   line(
+    "JSON fields: \{terminal_escape(summary.json_fields.label())} (exact top-level string keys; text logs unaffected).",
+  )
+  line(
     "Scanned \{summary.total} lines; matched \{summary.matched}; untimed \{summary.untimed}; errors \{summary.errors}; spikes \{summary.spikes.length()}.",
   )
   line(

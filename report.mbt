@@ -120,6 +120,9 @@ pub fn markdown_report(
     line("- Sources: \{sources.map(fn(s) { safe_markdown(s) }).join(", ")}")
   }
   line("- Engine: MoonLog 0.1.0 / native MoonBit")
+  line(
+    "- JSON fields (exact top-level string keys; text logs unaffected): \{safe_markdown(analysis.json_fields.label())}",
+  )
   line("- Lines scanned: \{analysis.total}")
   line("- Lines matching filters: \{analysis.matched}")
   line("- Matched lines without a valid timestamp: \{analysis.untimed}")

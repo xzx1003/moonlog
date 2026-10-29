@@ -16,6 +16,8 @@ make build
 ./bin/moonlog analyze fixtures/incident.log --report incident.json --format json
 ./bin/moonlog analyze fixtures/incident.log --report incident-signature.md \
   --signature 'ERROR: database timeout retry=#'
+./bin/moonlog analyze app.jsonl --report incident.md \
+  --json-time-field timestamp --json-level-field severity --json-message-field message
 ./bin/moonlog analyze old.log app.log --report incident.md
 ./bin/moonlog analyze old.log app.log --report incident.md --sampling distributed
 ./bin/moonlog --help
@@ -41,7 +43,7 @@ moonlog analyze old.log app.log --report incident.md
 
 - 支持普通单行文本和 JSON Lines，两种格式可以混合使用。
 - 支持 UTF-8、文件开头的 BOM、CRLF 换行，以及末行没有换行符的情况。
-- JSON 日志仅读取字符串字段 `ts`、`level` 和 `msg`，拒绝重复键，最大嵌套深度为 32。
+- JSON 日志按可配置的顶层字符串字段读取时间、级别和消息，默认键为 `ts`、`level` 和 `msg`，可用 `--json-time-field`、`--json-level-field`、`--json-message-field` 或配置文件同名键逐项覆盖。字段名精确匹配：不回退到默认键、不推断嵌套路径（`a.b` 是字面键名）、不转换数值字段，也不小写化级别；映射只影响 JSON 行，文本行格式不变。JSON 解析拒绝重复键，最大嵌套深度为 32。
 - 无效 JSON、堆栈行及无法识别的格式会保留为 `OTHER` 记录。多行堆栈不会自动合并成一个事件，但可作为上下文原文保留。
 - 日志记录保留原始物理行号，便于回查源文件。
 
@@ -105,7 +107,7 @@ Markdown 报告包含本次分析使用的参数与过滤条件（含上下文�
 
 尖峰内排名只统计该尖峰区间内、满足过滤条件的 ERROR/FATAL 记录，因此不会混入基线时段的噪声；不同尖峰分别排名。全局排名则覆盖所有匹配记录，不受尖峰区间限制。
 
-报告中的时间、统计结果和上下文均来自本地输入文件，不依赖外部服务。
+报告中的时间、统计结果和上下文均来自本地输入文件，不依赖外部服务。Markdown 摘要与终端摘要都会列出本次分析使用的有效 JSON 字段映射，便于确认自定义键名是否生效。
 
 除 Markdown 外，`--format json` 可输出结构化报告，字段说明见下文「报告格式」一节。两种格式都在报告成功写入后打印同一份终端摘要。
 
@@ -124,7 +126,14 @@ JSON Lines 示例：
 {"ts":"2026-10-28T08:15:30.123Z","level":"ERROR","msg":"database timeout retry=3"}
 ```
 
-JSON 记录中的时间戳直接从 `ts` 字段读取，无需在 JSON 对象外添加时间信息。
+JSON 记录默认从 `ts`、`level` 和 `msg` 三个顶层字符串字段读取时间、级别和消息，无需在 JSON 对象外添加时间信息。如果日志使用其他键名，可以逐项覆盖：
+
+```bash
+./bin/moonlog analyze app.jsonl --report incident.md \
+  --json-time-field timestamp --json-level-field severity --json-message-field message
+```
+
+映射只做精确的顶层字符串匹配。当前映射未命中的 JSON 行、字段值不是字符串、字段只存在于嵌套对象中，或只提供了默认键名时，该行不会按 JSON 记录解析；工具不会回退到 `ts`/`level`/`msg`，不会把 `a.b` 当作嵌套路径，不会把数值时间戳或数值级别转成字符串，也不会把级别小写化。文本日志（如 `2026-10-28 08:15:30 [ERROR] ...`）始终按原格式解析，与映射无关。三个字段名必须非空、互不相同、不含 C0/DEL 控制字符，且最长 256 个 UTF-16 单元。
 
 时间解析支持公历日期、秒级时间和小数秒。没有时区标记的时间按 UTC 处理；带 `Z` 或 `±HH:MM` 时区偏移的时间会转换为 UTC。内部时间精度为分钟，秒和小数秒会向下取整，因此 `--from` 和 `--to` 按完整分钟进行筛选。
 
@@ -159,6 +168,9 @@ JSON 记录中的时间戳直接从 `ts` 字段读取，无需在 JSON 对象外
 | `--context` | 每个目标前后采集的上下文行数，默认 10 |
 | `--context-mode` | 上下文目标：`spikes`（默认）或 `errors` |
 | `--max-samples` | 最多采集的上下文目标数，默认 20 |
+| `--json-time-field` | JSON 顶层时间字段名，默认 `ts` |
+| `--json-level-field` | JSON 顶层级别字段名，默认 `level` |
+| `--json-message-field` | JSON 顶层消息字段名，默认 `msg` |
 | `--level` | 按日志级别过滤 |
 | `--keyword` | 按消息内容过滤，区分大小写 |
 | `--signature` | 完整错误签名，用于限定上下文目标并输出各尖峰的对比 |
@@ -193,7 +205,7 @@ JSON 记录中的时间戳直接从 `ts` 字段读取，无需在 JSON 对象外
 
 ### Markdown
 
-Markdown 报告包含本次分析的参数与过滤条件（含上下文模式）、日志计数、尖峰区间、每个尖峰内独立的签名排名（最多前 10 项）、全局签名排名、日志错误占比（全范围/各尖峰/各观察时间桶）和原始上下文，结构见 [`docs/example-report.md`](docs/example-report.md)。观察时间桶的表按前 50 个展示，超出时注明截断，完整数据在 JSON 中。
+Markdown 报告包含本次分析的参数与过滤条件（含上下文模式）、日志计数、尖峰区间、每个尖峰内独立的签名排名（最多前 10 项）、全局签名排名、日志错误占比（全范围/各尖峰/各观察时间桶）和原始上下文，结构见 [`docs/example-report.md`](docs/example-report.md)。报告摘要列出有效的 JSON 字段映射（默认 `time=ts; level=level; message=msg`）。观察时间桶的表按前 50 个展示，超出时注明截断，完整数据在 JSON 中。
 
 指定 `--signature` 时，报告在全局排名之后多出一节「Selected signature comparison」：每个尖峰一组基线/尖峰窗口表格，加一行频率倍数。示例报告即由 `./bin/moonlog analyze fixtures/incident.log --report incident.md --signature 'ERROR: database timeout retry=#'` 生成。
 
@@ -219,6 +231,11 @@ JSON 报告由核心的 `ReportResult::json_report()` 生成，文件内容整�
       "rate_multiplier": null
     }
   ],
+  "json_fields": {
+    "time": "ts",
+    "level": "level",
+    "message": "msg"
+  },
   "schema_version": 1,
   "engine_version": "0.1.0",
   "source": "fixtures/incident.log",
@@ -312,6 +329,7 @@ JSON 报告由核心的 `ReportResult::json_report()` 生成，文件内容整�
 | `filter` | 级别、关键词与时间边界，时间边界为包含端点 |
 | `selected_signature` | 本次指定的完整签名；未指定时为 `null`，且不参与任何统计 |
 | `signature_comparisons` | 每个尖峰的基线/尖峰对比：窗口起止、分钟数、次数、每分钟频率与频率倍数；未指定签名时为空数组 |
+| `json_fields` | 本次分析使用的有效 JSON 顶层字段映射：`time`、`level`、`message`，已合并默认值、配置与 CLI 覆盖 |
 | `time_semantics` | 时间语义：UTC、秒向下取整到分钟、过滤含端点、尖峰结束不含 |
 | `log_error_ratio_semantics` | 日志错误占比的统计口径说明，随报告一起输出 |
 | `summary` | 总行数、匹配数、无有效时间戳数、ERROR+FATAL 数、尖峰数、上下文采样/遗漏数、全局签名遗漏数；另有全范围 `log_error_ratio` |
@@ -351,6 +369,7 @@ JSON 报告由核心的 `ReportResult::json_report()` 生成，文件内容整�
 
 ```text
 Source: fixtures/incident.log
+JSON fields: time=ts; level=level; message=msg (exact top-level string keys; text logs unaffected).
 Scanned 30 lines; matched 30; untimed 0; errors 4; spikes 1.
 Log error ratio (all observed lines): 13.3% (4/30).
 Ratio scope: time-valid lines only, OTHER included; level/keyword filters do not apply; untimed lines are excluded; a log-line share, not a request failure rate.
@@ -366,7 +385,7 @@ Context mode: spikes; sampled 4; omitted 0.
 Markdown report written to incident.md.
 ```
 
-摘要包含扫描数、匹配数、错误数、尖峰数，全范围日志错误占比与每行的 `errors/total`，每个尖峰的区间（结束不含）、错误数、占比和前 3 类签名及次数，上下文模式与采样/遗漏数，以及签名容量遗漏提示。上面的示例带 `--signature`，因此还包含选定签名与每个尖峰的窗口对比。
+摘要包含扫描数、匹配数、错误数、尖峰数，全范围日志错误占比与每行的 `errors/total`，每个尖峰的区间（结束不含）、错误数、占比和前 3 类签名及次数，上下文模式与采样/遗漏数，以及签名容量遗漏提示。摘要还会列出本次使用的有效 JSON 字段映射。上面的示例带 `--signature`，因此还包含选定签名与每个尖峰的窗口对比。
 
 - 日志错误占比在分母为零时显示 `N/A`，并同时打印 `errors/total`，因此 `N/A` 与 `0.0%` 不会混淆。
 - 摘要里另起一行说明占比口径：只看时间有效行、先于级别/关键词过滤、不是请求失败率。尖峰行的 `errors` 是过滤后的错误数，占比括号里的两个数来自观察口径，两者在 `--level`/`--keyword` 生效时可能不同。
@@ -508,7 +527,8 @@ moonlog analyze app.log --config config/moonlog.example.json --context 3 --repor
 
 完整示例见 [`config/moonlog.example.json`](config/moonlog.example.json)。键名使用 CLI 长选项去掉 `--` 的形式。
 允许的数值键：`bucket-minutes`、`baseline-buckets`、`multiplier`、`min-errors`、`context`、`max-samples`、`max-buckets`、`max-signatures`、`max-line-bytes`；范围与命令行一致。
-允许的字符串键：`format`、`sampling`、`context-mode`。
+允许的字符串键：`format`、`sampling`、`context-mode`、`json-time-field`、`json-level-field`、`json-message-field`。
+JSON 字段键按字符串校验，并遵守与 CLI 相同的字段名规则：非空、互不相同、不含 C0/DEL 控制字符、最长 256 个 UTF-16 单元。配置文件自身的映射必须合法，即使其中某个键随后被 CLI 覆盖。
 未知键、重复键、错误类型及越界值会报错，即使该值被 CLI 覆盖也必须合法。
 输入文件、报告路径、过滤条件均须在命令行指定，配置不能改变数据读写目标。
 配置文本限制为 64 KiB（按读取后的字符计），单行仍受默认 65,536 字节读取限制。

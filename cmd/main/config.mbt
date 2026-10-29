@@ -50,6 +50,7 @@ fn config_args(args : Array[String]) -> Array[String] raise {
   }
   guard json is Object(fields) else { fail("config must be a JSON object") }
   let defaults : Array[String] = []
+  let json_config_fields : Map[String, String] = Map([])
   for key, value in fields {
     let flag = "--" + key
     let rendered = match key {
@@ -92,6 +93,11 @@ fn config_args(args : Array[String]) -> Array[String] raise {
         }
         v
       }
+      "json-time-field" | "json-level-field" | "json-message-field" => {
+        guard value is String(v) else { fail("config \{key} must be a string") }
+        json_config_fields[key] = v
+        v
+      }
       _ => fail("unknown or forbidden config key: \{key}")
     }
     // An explicit CLI flag wins over this config key.
@@ -111,6 +117,21 @@ fn config_args(args : Array[String]) -> Array[String] raise {
       defaults.push(rendered)
     }
   }
+  // Validate the config layer as a complete mapping even when a CLI flag later
+  // overrides one of its keys. The merged mapping is validated again in run().
+  ignore(
+    @engine.JsonFields::new(
+      time=json_config_fields.get_or_default("json-time-field", "ts"),
+      level=json_config_fields.get_or_default("json-level-field", "level"),
+      message=json_config_fields.get_or_default("json-message-field", "msg"),
+    ) catch {
+      Failure(message) =>
+        fail(
+          "config JSON field mapping is invalid: \{failure_message(message)}",
+        )
+      _ => fail("config JSON field mapping is invalid")
+    },
+  )
   // Insert config values after positional inputs but before CLI options. This
   // gives CLI settings precedence without triggering duplicate-option errors.
   let mut first_option = if cleaned.length() < 2 { cleaned.length() } else { 2 }

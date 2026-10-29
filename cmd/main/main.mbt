@@ -17,6 +17,10 @@ const Usage : String =
   #|  --max-buckets N      Maximum bucket span (default 100000)
   #|  --max-signatures N   Maximum retained signatures (default 1000)
   #|  --max-line-bytes N   Maximum physical line bytes (default 65536)
+  #|  --json-time-field K  Exact top-level JSON time key (default ts)
+  #|  --json-level-field K Exact top-level JSON level key (default level)
+  #|  --json-message-field K
+  #|                       Exact top-level JSON message key (default msg)
   #|  --level LEVEL        DEBUG/INFO/WARN/ERROR/FATAL/OTHER
   #|  --keyword TEXT       Case-sensitive substring of the message
   #|  --signature SIG      Exact full signature for context and comparison,
@@ -24,6 +28,10 @@ const Usage : String =
   #|  --from TIMESTAMP     Inclusive UTC minute, e.g. "2026-10-28 08:00:00"
   #|  --to TIMESTAMP       Inclusive UTC minute
   #|  --help               Show this help
+  #|
+  #|JSON fields are exact top-level string keys; "a.b" is a literal key, not a
+  #|nested path. There is no fallback to ts/level/msg, no numeric conversion and
+  #|no level lowercasing. Text log lines are parsed independently of this map.
   #|
   #|Inputs must be stable, regular UTF-8 files. One file is scanned twice;
   #|multiple files, or --sampling distributed, are scanned three times.
@@ -149,6 +157,9 @@ fn run(args : Array[String]) -> Unit raise {
   let mut max_buckets = 100000
   let mut max_signatures = 1000
   let mut max_line_bytes = 65536
+  let mut json_time_field = "ts"
+  let mut json_level_field = "level"
+  let mut json_message_field = "msg"
   let mut level : @engine.Level? = None
   let mut keyword = ""
   let mut selected_signature : String? = None
@@ -201,6 +212,9 @@ fn run(args : Array[String]) -> Unit raise {
       "--max-buckets" => max_buckets = positive_or_zero(value, flag)
       "--max-signatures" => max_signatures = positive_or_zero(value, flag)
       "--max-line-bytes" => max_line_bytes = positive_or_zero(value, flag)
+      "--json-time-field" => json_time_field = value
+      "--json-level-field" => json_level_field = value
+      "--json-message-field" => json_message_field = value
       "--keyword" => keyword = value
       "--signature" => {
         // The value is a complete normalized signature. Reject an empty one
@@ -234,6 +248,13 @@ fn run(args : Array[String]) -> Unit raise {
   if from is Some(a) && to is Some(b) && a > b {
     fail("--from must not be after --to")
   }
+  // Validate the complete mapping only after every field source (defaults,
+  // config, CLI) has been applied, so partial overrides are checked together.
+  let json_fields = @engine.JsonFields::new(
+    time=json_time_field,
+    level=json_level_field,
+    message=json_message_field,
+  )
   @io.ensure_distinct_output(report, sources)
   // Reject duplicate paths and hard/symbolic-link aliases using POSIX device
   // number and inode, never string comparison of paths or log content.
@@ -259,7 +280,7 @@ fn run(args : Array[String]) -> Unit raise {
   // One analyzer sees every file in caller order, so time buckets and spikes
   // are shared across all inputs. File order only affects sampling and the
   // order in which signatures are retained under capacity pressure.
-  let analyzer = @engine.Analyzer::new(config, filter~)
+  let analyzer = @engine.Analyzer::new(config, filter~, json_fields~)
 
   // Pass 1: aggregate statistics across every file.
   let snapshots = Array::makei(sources.length(), i => {

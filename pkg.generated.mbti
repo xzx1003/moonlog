@@ -22,7 +22,7 @@ pub fn markdown_report(Analysis, Array[FileContextWindow], Int32, Int32, SpikeSi
 
 pub fn parse_level(String) -> Level
 
-pub fn parse_line(String) -> Record
+pub fn parse_line(String, fields? : JsonFields) -> Record
 
 pub fn parse_time(String) -> Int64?
 
@@ -30,6 +30,7 @@ pub fn parse_time(String) -> Int64?
 
 // Types and methods
 pub(all) struct Analysis {
+  json_fields : JsonFields
   config : Config
   filter : Filter
   total : Int32
@@ -46,6 +47,7 @@ pub fn Analysis::is_target(Self, String, mode? : ContextMode, signature? : Strin
 pub fn Analysis::log_error_ratio(Self, start? : Int64?, end? : Int64?) -> LogErrorRatio
 
 pub struct Analyzer {
+  json_fields : JsonFields
   config : Config
   filter : Filter
   observation : Map[Int64, Bucket]
@@ -61,7 +63,7 @@ pub struct Analyzer {
 }
 pub fn Analyzer::feed(Self, String) -> Unit raise
 pub fn Analyzer::finish(Self) -> Analysis
-pub fn Analyzer::new(Config, filter? : Filter) -> Self
+pub fn Analyzer::new(Config, filter? : Filter, json_fields? : JsonFields) -> Self
 
 pub(all) struct Bucket {
   start : Int64
@@ -134,6 +136,16 @@ pub fn Filter::accepts(Self, Record) -> Bool
 pub fn Filter::new() -> Self
 #deprecated
 pub fn Filter::to_repr(Self) -> @debug.Repr
+
+pub struct JsonFields {
+  time : String
+  level : String
+  message : String
+}
+pub fn JsonFields::default() -> Self
+pub fn JsonFields::label(Self) -> String
+pub fn JsonFields::new(time? : String, level? : String, message? : String) -> Self raise
+pub fn JsonFields::to_json(Self) -> Json
 
 pub(all) enum Level {
   Debug
@@ -309,6 +321,7 @@ pub(all) struct TerminalSummary {
   sampling : SamplingMode
   scans : Int32
   sample_limit : Int32
+  json_fields : JsonFields
   total : Int32
   matched : Int32
   untimed : Int32

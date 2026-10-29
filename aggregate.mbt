@@ -1,5 +1,6 @@
 ///|
 pub struct Analyzer {
+  json_fields : JsonFields
   config : Config
   filter : Filter
   observation : Map[Int64, Bucket]
@@ -18,9 +19,11 @@ pub struct Analyzer {
 pub fn Analyzer::new(
   config : Config,
   filter~ : Filter = Filter::new(),
+  json_fields~ : JsonFields = JsonFields::default(),
 ) -> Analyzer {
   {
     config,
+    json_fields,
     filter,
     observation: {},
     buckets: {},
@@ -38,7 +41,7 @@ pub fn Analyzer::new(
 ///|
 pub fn Analyzer::feed(self : Analyzer, raw : String) -> Unit raise {
   self.total += 1
-  let record = parse_line(raw)
+  let record = parse_line(raw, fields=self.json_fields)
   // The observation interval comes from time-valid input, not just matching
   // errors. Otherwise --level ERROR would erase the preceding healthy baseline.
   if record.minute is Some(minute) &&
@@ -102,6 +105,7 @@ pub fn Analyzer::feed(self : Analyzer, raw : String) -> Unit raise {
 
 ///|
 pub(all) struct Analysis {
+  json_fields : JsonFields
   config : Config
   filter : Filter
   total : Int32
@@ -141,6 +145,7 @@ pub fn Analyzer::finish(self : Analyzer) -> Analysis {
     }
   })
   {
+    json_fields: self.json_fields,
     config: self.config,
     filter: self.filter,
     total: self.total,
@@ -203,7 +208,7 @@ pub fn Analysis::is_target(
   mode~ : ContextMode = Spikes,
   signature~ : String? = None,
 ) -> Bool {
-  let record = parse_line(raw)
+  let record = parse_line(raw, fields=self.json_fields)
   if !record.level.is_error() || !self.filter.accepts(record) {
     return false
   }

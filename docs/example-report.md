@@ -6,6 +6,7 @@ Deterministic log evidence; spike detection does not establish a root cause.
 
 - Source: fixtures/incident.log
 - Engine: MoonLog 0.1.0 / native MoonBit
+- JSON fields (exact top-level string keys; text logs unaffected): time=ts; level=level; message=msg
 - Lines scanned: 30
 - Lines matching filters: 30
 - Matched lines without a valid timestamp: 0
