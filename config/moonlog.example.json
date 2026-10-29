@@ -13,5 +13,15 @@
   "json-time-field": "ts",
   "json-level-field": "level",
   "json-message-field": "msg",
+  "redact-text": [
+    {
+      "needle": "replace-with-a-literal-secret",
+      "replacement": "[REDACTED]"
+    }
+  ],
+  "redact-fields": [
+    "token",
+    "password"
+  ],
   "format": "markdown"
 }

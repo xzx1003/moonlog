@@ -111,9 +111,12 @@ pub fn SignatureComparisonCollector::comparisons(
 }
 
 ///|
-pub fn SignatureComparison::to_json(self : SignatureComparison) -> Json {
+pub fn SignatureComparison::to_json(
+  self : SignatureComparison,
+  redactor~ : Redactor = Redactor::none(),
+) -> Json {
   Json::object({
-    "signature": Json(self.signature),
+    "signature": Json(redactor.apply(self.signature)),
     "before_start": Json(format_time(self.before_start)),
     "spike_start": Json(format_time(self.spike_start)),
     "spike_end_exclusive": Json(format_time(self.spike_end)),

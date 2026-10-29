@@ -33,6 +33,13 @@ const Usage : String =
   #|nested path. There is no fallback to ts/level/msg, no numeric conversion and
   #|no level lowercasing. Text log lines are parsed independently of this map.
   #|
+  #|Redaction is config-file only: redact-text and redact-fields. Rules are
+  #|never accepted on the command line, so they stay out of shell history.
+  #|Redaction affects output only; statistics still use the original logs.
+  #|JSON field rules cover raw JSON context lines. Parsed messages, signatures,
+  #|paths, keywords and report hints need literal redact-text rules.
+  #|Redaction is not a guarantee that all sensitive data was removed.
+  #|
   #|Inputs must be stable, regular UTF-8 files. One file is scanned twice;
   #|multiple files, or --sampling distributed, are scanned three times.
   #|Duplicate and hard/symbolic-link aliased inputs are rejected.
@@ -114,7 +121,8 @@ fn verify_snapshots(
 }
 
 ///|
-fn run(args : Array[String]) -> Unit raise {
+fn run(prepared : PreparedArgs) -> Unit raise {
+  let args = prepared.args
   if args.length() < 2 {
     fail("expected analyze <input.log> --report <incident.md>; use --help")
   }
@@ -386,6 +394,8 @@ fn run(args : Array[String]) -> Unit raise {
     sample_limit=max_samples,
     selected_signature~,
     signature_comparisons~,
+    redactor=prepared.redactor,
+    redact_fields=prepared.redact_fields,
   )
   let content = if format == "json" {
     result.json_report()
@@ -402,6 +412,8 @@ fn run(args : Array[String]) -> Unit raise {
       scans=if three_pass { 3 } else { 2 },
       selected_signature~,
       signature_comparisons~,
+      redactor=prepared.redactor,
+      redact_fields=prepared.redact_fields,
     )
   }
   @io.write_report(report, content)
@@ -418,20 +430,24 @@ fn failure_message(message : String) -> String {
 }
 
 ///|
-fn run_with_config() -> Unit raise {
-  run(config_args(@env.args()))
+fn print_failure(message : String, redactor : @engine.Redactor) -> Unit {
+  @io.stderr("moonlog: \{terminal_escape(redactor.apply(message))}")
+  @io.exit(1)
 }
 
 ///|
 fn main {
-  run_with_config() catch {
-    Failure(message) => {
-      @io.stderr("moonlog: \{terminal_escape(failure_message(message))}")
-      @io.exit(1)
-    }
-    error => {
-      @io.stderr("moonlog: \{terminal_escape("\{error}")}")
-      @io.exit(1)
-    }
+  let outcome : Result[PreparedArgs, String] = Ok(config_args(@env.args())) catch {
+    Failure(message) => Err(failure_message(message))
+    error => Err("\{error}")
+  }
+  match outcome {
+    Ok(prepared) =>
+      run(prepared) catch {
+        Failure(message) =>
+          print_failure(failure_message(message), prepared.diagnostic_redactor)
+        error => print_failure("\{error}", prepared.diagnostic_redactor)
+      }
+    Err(message) => print_failure(message, @engine.Redactor::none())
   }
 }

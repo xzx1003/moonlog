@@ -16,6 +16,8 @@ pub struct ReportResult {
   sample_limit : Int32
   selected_signature : String?
   signature_comparisons : Array[SignatureComparison]
+  redactor : Redactor
+  redact_fields : Array[String]
 }
 
 ///|
@@ -32,6 +34,8 @@ pub fn ReportResult::new(
   sample_limit~ : Int32 = 20,
   selected_signature~ : String? = None,
   signature_comparisons~ : Array[SignatureComparison] = [],
+  redactor~ : Redactor = Redactor::none(),
+  redact_fields~ : Array[String] = [],
 ) -> ReportResult {
   {
     analysis,
@@ -46,6 +50,8 @@ pub fn ReportResult::new(
     sample_limit,
     selected_signature,
     signature_comparisons,
+    redactor,
+    redact_fields: redact_fields.copy(),
   }
 }
 
@@ -80,6 +86,8 @@ pub(all) struct TerminalSummary {
   spikes : Array[SpikeSummary]
   selected_signature : String?
   signature_comparisons : Array[SignatureComparison]
+  redactor : Redactor
+  redact_fields : Array[String]
 }
 
 ///|
@@ -129,6 +137,8 @@ pub fn ReportResult::summary(self : ReportResult) -> TerminalSummary {
     spikes,
     selected_signature: self.selected_signature,
     signature_comparisons: self.signature_comparisons,
+    redactor: self.redactor,
+    redact_fields: self.redact_fields.copy(),
   }
 }
 
@@ -141,10 +151,16 @@ fn result_time(value : Int64?) -> Json {
 }
 
 ///|
-fn result_signatures(signatures : Array[Signature]) -> Json {
+fn result_signatures(
+  signatures : Array[Signature],
+  redactor : Redactor,
+) -> Json {
   Json::array(
     signatures.map(s => {
-      Json::object({ "text": Json(s.text), "count": Json(s.count) })
+      Json::object({
+        "text": Json(redactor.apply(s.text)),
+        "count": Json(s.count),
+      })
     }),
   )
 }
@@ -171,37 +187,45 @@ pub fn ReportResult::to_json(self : ReportResult) -> Json {
       "errors": Json(s.errors),
       "peak_errors": Json(s.peak_errors),
       "baseline": Json(s.baseline),
-      "signatures": result_signatures(self.spike_signatures.signatures(i)),
+      "signatures": result_signatures(
+        self.spike_signatures.signatures(i),
+        self.redactor,
+      ),
       "omitted_signature_occurrences": Json(self.spike_signatures.omitted(i)),
     })
   })
   let windows = self.file_windows.map(fw => {
     Json::object({
-      "source": Json(fw.source),
+      "source": Json(self.redactor.apply(fw.source)),
       "targets": Json(fw.window.targets),
       "lines": Json::array(
         fw.window.lines.map(line => {
-          Json::object({ "number": Json(line.number), "text": Json(line.text) })
+          Json::object({
+            "number": Json(line.number),
+            "text": Json(
+              redact_raw_line(self.redactor, self.redact_fields, line.text),
+            ),
+          })
         }),
       ),
     })
   })
-  Json::object({
+  let document = Json::object({
     "selected_signature": match self.selected_signature {
-      Some(s) => Json(s)
+      Some(s) => Json(self.redactor.apply(s))
       None => Json::null()
     },
     "signature_comparisons": Json::array(
-      self.signature_comparisons.map(c => c.to_json()),
+      self.signature_comparisons.map(c => c.to_json(redactor=self.redactor)),
     ),
     "json_fields": a.json_fields.to_json(),
     "schema_version": Json(1),
     "engine_version": Json("0.1.0"),
     "source": match self.sources.length() {
-      1 => Json(self.sources[0])
+      1 => Json(self.redactor.apply(self.sources[0]))
       _ => Json::null()
     },
-    "sources": Json::array(self.sources.map(s => Json(s))),
+    "sources": Json::array(self.sources.map(s => Json(self.redactor.apply(s)))),
     "sampling": Json(self.sampling.label()),
     "scans": Json(self.scans),
     "config": Json::object({
@@ -220,7 +244,7 @@ pub fn ReportResult::to_json(self : ReportResult) -> Json {
         Some(l) => Json(l.label())
         None => Json::null()
       },
-      "keyword": Json(f.keyword),
+      "keyword": Json(self.redactor.apply(f.keyword)),
       "from_inclusive": result_time(f.from),
       "to_inclusive": result_time(f.to),
     }),
@@ -269,12 +293,22 @@ pub fn ReportResult::to_json(self : ReportResult) -> Json {
       }),
     ),
     "spikes": Json::array(spikes),
-    "signatures": result_signatures(a.signatures),
+    "signatures": result_signatures(a.signatures, self.redactor),
     "context_windows": Json::array(windows),
     "diagnostic_note": Json(
       "Rule-based evidence; spikes do not establish a root cause. Signature counts cover retained signatures only; context contains unfiltered original lines.",
     ),
   })
+  if redaction_enabled(self.redactor, self.redact_fields) {
+    match document {
+      Object(fields) =>
+        fields["redaction"] = self.redactor.metadata(
+          self.redact_fields.length(),
+        )
+      _ => ()
+    }
+  }
+  document
 }
 
 ///|

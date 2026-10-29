@@ -38,7 +38,10 @@ fn terminal_escape(text : String) -> String {
 }
 
 ///|
-fn spike_summary_lines(summary : @engine.SpikeSummary) -> Array[String] {
+fn spike_summary_lines(
+  redactor : @engine.Redactor,
+  summary : @engine.SpikeSummary,
+) -> Array[String] {
   let lines : Array[String] = []
   let shown = summary.top_signatures.length()
   if shown == 0 {
@@ -52,7 +55,7 @@ fn spike_summary_lines(summary : @engine.SpikeSummary) -> Array[String] {
     return lines
   }
   let ranked = summary.top_signatures.map(s => {
-    "\{terminal_escape(s.text)} (\{s.count})"
+    "\{terminal_escape(redactor.apply(s.text))} (\{s.count})"
   })
   lines.push("  Top signatures (\{shown}): \{ranked.join(", ")}")
   if summary.retained_signature_count > shown {
@@ -74,12 +77,13 @@ fn spike_summary_lines(summary : @engine.SpikeSummary) -> Array[String] {
 fn signature_comparison_lines(
   signature : String,
   comparisons : Array[@engine.SignatureComparison],
+  redactor : @engine.Redactor,
 ) -> Array[String] {
   let lines : Array[String] = []
   fn line(text : String) -> Unit {
     lines.push(text)
   }
-  line("Selected signature: \{terminal_escape(signature)}")
+  line("Selected signature: \{terminal_escape(redactor.apply(signature))}")
   line(
     "  Exact match on the complete normalized signature; counts apply the level/keyword/time filters; the pre-spike window can contain earlier incidents and is not a healthy window.",
   )
@@ -130,13 +134,20 @@ fn terminal_summary(
     lines.push(text)
   }
   if summary.sources.length() == 1 {
-    line("Source: \{terminal_escape(summary.source)}")
+    line("Source: \{terminal_escape(summary.redactor.apply(summary.source))}")
   } else {
-    line("Sources: \{summary.sources.map(s => terminal_escape(s)).join(", ")}")
+    line(
+      "Sources: \{summary.sources.map(s => terminal_escape(summary.redactor.apply(s))).join(", ")}",
+    )
   }
   line(
     "JSON fields: \{terminal_escape(summary.json_fields.label())} (exact top-level string keys; text logs unaffected).",
   )
+  if summary.redactor.enabled() || !summary.redact_fields.is_empty() {
+    line(
+      "Redaction: output-only best-effort; \{summary.redactor.rule_count()} literal rule(s), \{summary.redact_fields.length()} JSON field rule(s) (raw JSON context lines only); not a guarantee that all sensitive data was removed.",
+    )
+  }
   line(
     "Scanned \{summary.total} lines; matched \{summary.matched}; untimed \{summary.untimed}; errors \{summary.errors}; spikes \{summary.spikes.length()}.",
   )
@@ -160,7 +171,7 @@ fn terminal_summary(
       line(
         "  Log error ratio: \{@engine.format_ratio(spike.log_error_ratio)} (\{spike.log_error_ratio.errors}/\{spike.log_error_ratio.total}).",
       )
-      for text in spike_summary_lines(spike) {
+      for text in spike_summary_lines(summary.redactor, spike) {
         line(text)
       }
     }
@@ -170,6 +181,7 @@ fn terminal_summary(
       text in signature_comparison_lines(
         signature,
         summary.signature_comparisons,
+        summary.redactor,
       ) {
       line(text)
     }
@@ -182,6 +194,8 @@ fn terminal_summary(
       "Signature capacity: \{summary.omitted_global_signature_occurrences} occurrence(s) were omitted from the global ranking after max_signatures was reached.",
     )
   }
-  line("\{format} report written to \{terminal_escape(report)}.")
+  line(
+    "\{format} report written to \{terminal_escape(summary.redactor.apply(report))}.",
+  )
   lines.join("\n")
 }

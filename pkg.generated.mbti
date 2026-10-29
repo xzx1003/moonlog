@@ -18,7 +18,7 @@ pub fn format_ratio(LogErrorRatio) -> String
 
 pub fn format_time(Int64) -> String
 
-pub fn markdown_report(Analysis, Array[FileContextWindow], Int32, Int32, SpikeSignatureCollector, ContextMode, Array[String], sampling? : SamplingMode, scans? : Int32, selected_signature? : String?, signature_comparisons? : Array[SignatureComparison]) -> String
+pub fn markdown_report(Analysis, Array[FileContextWindow], Int32, Int32, SpikeSignatureCollector, ContextMode, Array[String], sampling? : SamplingMode, scans? : Int32, selected_signature? : String?, signature_comparisons? : Array[SignatureComparison], redactor? : Redactor, redact_fields? : Array[String]) -> String
 
 pub fn parse_level(String) -> Level
 
@@ -199,6 +199,22 @@ pub fn Record::not_equal(Self, Self) -> Bool
 #deprecated
 pub fn Record::to_repr(Self) -> @debug.Repr
 
+pub(all) struct RedactionRule {
+  needle : String
+  replacement : String
+}
+
+pub struct Redactor {
+  rules : Array[RedactionRule]
+}
+pub fn Redactor::apply(Self, String) -> String
+pub fn Redactor::enabled(Self) -> Bool
+pub fn Redactor::json_line(Self, String, Array[String]) -> String
+pub fn Redactor::metadata(Self, Int32) -> Json
+pub fn Redactor::new(Array[RedactionRule]) -> Self raise
+pub fn Redactor::none() -> Self
+pub fn Redactor::rule_count(Self) -> Int32
+
 pub struct ReportResult {
   analysis : Analysis
   file_windows : Array[FileContextWindow]
@@ -212,9 +228,11 @@ pub struct ReportResult {
   sample_limit : Int32
   selected_signature : String?
   signature_comparisons : Array[SignatureComparison]
+  redactor : Redactor
+  redact_fields : Array[String]
 }
 pub fn ReportResult::json_report(Self) -> String
-pub fn ReportResult::new(Analysis, Array[FileContextWindow], Int32, Int32, SpikeSignatureCollector, ContextMode, Array[String], sampling? : SamplingMode, scans? : Int32, sample_limit? : Int32, selected_signature? : String?, signature_comparisons? : Array[SignatureComparison]) -> Self
+pub fn ReportResult::new(Analysis, Array[FileContextWindow], Int32, Int32, SpikeSignatureCollector, ContextMode, Array[String], sampling? : SamplingMode, scans? : Int32, sample_limit? : Int32, selected_signature? : String?, signature_comparisons? : Array[SignatureComparison], redactor? : Redactor, redact_fields? : Array[String]) -> Self
 pub fn ReportResult::summary(Self) -> TerminalSummary
 pub fn ReportResult::to_json(Self) -> Json
 
@@ -260,7 +278,7 @@ pub(all) struct SignatureComparison {
   spike_per_minute : Double
   rate_multiplier : Double?
 }
-pub fn SignatureComparison::to_json(Self) -> Json
+pub fn SignatureComparison::to_json(Self, redactor? : Redactor) -> Json
 
 pub struct SignatureComparisonCollector {
   analysis : Analysis
@@ -333,6 +351,8 @@ pub(all) struct TerminalSummary {
   spikes : Array[SpikeSummary]
   selected_signature : String?
   signature_comparisons : Array[SignatureComparison]
+  redactor : Redactor
+  redact_fields : Array[String]
 }
 
 // Type aliases

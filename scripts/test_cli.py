@@ -1170,6 +1170,336 @@ class CLI(unittest.TestCase):
                 self.assertIn('default level', text)
                 self.assertIn('default msg', text)
 
+    def test_redaction_cross_format_and_statistics_unchanged(self):
+        self.source = self.root / 'pathsecret-input.log'
+        rows = [
+            '2026-10-28 08:00:00 [INFO] healthy alice@example.com',
+            '2026-10-28 08:05:00 [ERROR] alice@example.com token=abc123',
+            '{"ts":"2026-10-28T08:05:00Z","level":"ERROR","msg":"alice@example.com token=abc123","token":"field-secret","nested":{"token":"nested-secret"}}',
+            'broken alice@example.com token=abc123 {"token":"invalid-secret"}',
+            '2026-10-28 08:05:00 [ERROR] alice@example.com token=abc123',
+        ]
+        self.source.write_text('\n'.join(rows) + '\n', encoding='utf8')
+        original = self.source.read_bytes()
+        config = self.root / 'moonlog.json'
+        config.write_text(json.dumps({
+            'redact-text': [
+                {'needle': 'alice@example.com', 'replacement': '[EMAIL]'},
+                {'needle': 'token=abc123', 'replacement': 'token=[TOKEN]'},
+                {'needle': 'pathsecret', 'replacement': '[PATH]'},
+                {'needle': 'invalid-secret', 'replacement': '[INVALID]'},
+            ],
+            'redact-fields': ['token'],
+            'baseline-buckets': 1,
+            'multiplier': 2,
+            'min-errors': 2,
+            'context': 2,
+        }), encoding='utf8')
+        args = ('--keyword', 'alice@example.com',
+                '--signature', 'ERROR: alice@example.com token=abc#')
+        md_path = self.root / 'pathsecret-report.md'
+        md = self.run_cli('analyze', self.source, '--config', config,
+                          '--report', md_path, *args)
+        json_path = self.root / 'pathsecret-report.json'
+        js = self.run_cli('analyze', self.source, '--config', config,
+                          '--report', json_path, '--format', 'json', *args)
+        secrets = ['alice@example.com', 'token=abc123', 'pathsecret',
+                   'field-secret', 'nested-secret', 'invalid-secret']
+        for text in (md.stdout, js.stdout, md_path.read_text(),
+                     json_path.read_text()):
+            for secret in secrets:
+                self.assertNotIn(secret, text)
+        md_text = md_path.read_text()
+        self.assertIn('Redaction:', md.stdout)
+        self.assertIn('Redaction:', md_text)
+        self.assertIn('\\[PATH\\]-input.log', md_text)
+        self.assertIn('[EMAIL] token=[TOKEN]', md_text)
+        document = json.loads(json_path.read_text())
+        self.assertEqual(document['redaction']['literal_rule_count'], 4)
+        self.assertEqual(document['redaction']['json_field_rule_count'], 1)
+        self.assertIn('not a guarantee', document['redaction']['notice'])
+        self.assertNotIn('needle', document['redaction'])
+        self.assertIn('[PATH]', document['source'])
+        self.assertEqual(document['sources'], [document['source']])
+        self.assertEqual(document['filter']['keyword'], '[EMAIL]')
+        self.assertEqual(document['selected_signature'],
+                         'ERROR: [EMAIL] token=abc#')
+        self.assertEqual(document['signatures'][0]['text'],
+                         'ERROR: [EMAIL] token=abc#')
+        self.assertEqual(document['spikes'][0]['signatures'][0]['text'],
+                         'ERROR: [EMAIL] token=abc#')
+        self.assertEqual(document['signature_comparisons'][0]['signature'],
+                         'ERROR: [EMAIL] token=abc#')
+        for window in document['context_windows']:
+            self.assertIn('[PATH]', window['source'])
+        context = {}
+        for window in document['context_windows']:
+            for line in window['lines']:
+                context[line['number']] = line['text']
+        self.assertIn('[EMAIL] token=[TOKEN]', context[2])
+        self.assertIn('[EMAIL] token=[TOKEN]', context[5])
+        nested = json.loads(context[3])
+        self.assertEqual(nested['token'], '[REDACTED]')
+        self.assertEqual(nested['nested']['token'], '[REDACTED]')
+        self.assertIn('[EMAIL]', nested['msg'])
+        self.assertIn('[INVALID]', context[4])
+        self.assertTrue(context[4].startswith('broken '))
+
+        # The same numeric analysis without redaction must be identical.
+        plain_path = self.root / 'plain.json'
+        self.run_cli('analyze', self.source, '--report', plain_path,
+                     '--format', 'json', '--baseline-buckets', '1',
+                     '--multiplier', '2', '--min-errors', '2',
+                     '--context', '2', *args)
+        plain = json.loads(plain_path.read_text())
+        self.assertNotIn('redaction', plain)
+
+        def comparable(doc):
+            return {
+                'summary': doc['summary'],
+                'level_counts': doc['level_counts'],
+                'buckets': doc['buckets'],
+                'observation_buckets': doc['observation_buckets'],
+                'spikes': [
+                    {key: spike[key] for key in
+                     ('start', 'end_exclusive', 'errors', 'peak_errors',
+                      'baseline')}
+                    for spike in doc['spikes']
+                ],
+                'signature_counts': [item['count']
+                                     for item in doc['signatures']],
+                'spike_signature_counts': [
+                    [item['count'] for item in spike['signatures']]
+                    for spike in doc['spikes']
+                ],
+                'comparisons': [
+                    (item['before_start'], item['spike_start'],
+                     item['spike_end_exclusive'], item['before_minutes'],
+                     item['spike_minutes'], item['before_count'],
+                     item['spike_count'])
+                    for item in doc['signature_comparisons']
+                ],
+                'context': [
+                    {'targets': window['targets'],
+                     'numbers': [line['number']
+                                 for line in window['lines']]}
+                    for window in doc['context_windows']
+                ],
+                'sampling': doc['sampling'],
+                'scans': doc['scans'],
+                'json_fields': doc['json_fields'],
+                'filter': {key: value for key, value in doc['filter'].items()
+                           if key != 'keyword'},
+            }
+
+        self.assertEqual(comparable(document), comparable(plain))
+        self.assertEqual(self.source.read_bytes(), original)
+
+    def test_redaction_field_rules_only_touch_raw_json_context(self):
+        rows = [
+            '{"ts":"2026-10-28T08:00:00Z","level":"INFO","msg":"healthy"}',
+            '{"ts":"2026-10-28T08:05:00Z","level":"ERROR","msg":"boom","source":"raw-source-secret","summary":"raw-summary-secret"}',
+            '{"ts":"2026-10-28T08:05:00Z","level":"ERROR","msg":"boom"}',
+        ]
+        self.source.write_text('\n'.join(rows) + '\n', encoding='utf8')
+        config = self.root / 'moonlog.json'
+        config.write_text(json.dumps({
+            'redact-fields': ['source', 'summary'],
+            'baseline-buckets': 1,
+            'multiplier': 2,
+            'min-errors': 2,
+            'context': 1,
+        }), encoding='utf8')
+        json_path = self.root / 'scope.json'
+        result = self.run_cli('analyze', self.source, '--config', config,
+                              '--report', json_path, '--format', 'json')
+        document = json.loads(json_path.read_text())
+        # Field rules apply to raw JSON context lines, never to report keys.
+        self.assertEqual(document['source'], str(self.source))
+        self.assertIsInstance(document['summary'], dict)
+        self.assertEqual(document['summary']['total'], 3)
+        self.assertEqual(document['redaction']['literal_rule_count'], 0)
+        self.assertEqual(document['redaction']['json_field_rule_count'], 2)
+        self.assertIn('Redaction:', result.stdout)
+        for window in document['context_windows']:
+            self.assertEqual(window['source'], str(self.source))
+        context_text = next(
+            line['text']
+            for window in document['context_windows']
+            for line in window['lines'] if line['number'] == 2)
+        parsed = json.loads(context_text)
+        self.assertEqual(parsed['source'], '[REDACTED]')
+        self.assertEqual(parsed['summary'], '[REDACTED]')
+        self.assertEqual(parsed['msg'], 'boom')
+        self.assertNotIn('raw-source-secret', json_path.read_text())
+
+        md_path = self.root / 'scope.md'
+        md = self.run_cli('analyze', self.source, '--config', config,
+                          '--report', md_path)
+        md_text = md_path.read_text()
+        self.assertIn('Redaction:', md.stdout)
+        self.assertIn('Redaction:', md_text)
+        self.assertIn('"source":"[REDACTED]"', md_text)
+        self.assertNotIn('raw-source-secret', md_text)
+        self.assertNotIn('raw-summary-secret', md_text)
+
+    def test_redaction_config_validation_never_echoes_rules(self):
+        self.source.write_text('2026-10-28 08:00:00 [INFO] ready\n',
+                               encoding='utf8')
+        needle = 'TOP-SECRET-NEEDLE'
+        replacement = 'TOP-SECRET-REPLACEMENT'
+        config = self.root / 'moonlog.json'
+        cases = [
+            ({'redact-text': 'x'}, 'config redact-text must be an array'),
+            ({'redact-text': [{}]},
+             'must contain exactly needle and replacement'),
+            ({'redact-text': [{'needle': needle}]},
+             'must contain exactly needle and replacement'),
+            ({'redact-text': [{'needle': needle,
+                               'replacement': replacement, 'extra': 'x'}]},
+             'must contain exactly needle and replacement'),
+            ({'redact-text': [{'needle': 3, 'replacement': 'x'}]},
+             'needle must be a string'),
+            ({'redact-text': [{'needle': needle, 'replacement': 3}]},
+             'replacement must be a string'),
+            ({'redact-text': [{'needle': '', 'replacement': 'x'}]},
+             'needle must not be empty'),
+            ({'redact-text': [{'needle': needle + '\n',
+                               'replacement': 'x'}]},
+             'needle must not contain newlines'),
+            ({'redact-text': [{'needle': needle,
+                               'replacement': replacement + '\u0001'}]},
+             'replacement must not contain control characters'),
+            ({'redact-text': [{'needle': needle,
+                               'replacement': needle}]},
+             'replacement must differ from needle'),
+            ({'redact-text': [
+                {'needle': needle, 'replacement': 'a'},
+                {'needle': needle, 'replacement': 'b'},
+            ]}, 'duplicates an earlier rule'),
+            ({'redact-text': [
+                {'needle': 'x' * 1025, 'replacement': 'y'},
+            ]}, 'needle must be at most 1024 UTF-16 code units'),
+            ({'redact-text': [
+                {'needle': 'x', 'replacement': 'y' * 1025},
+            ]}, 'replacement must be at most 1024 UTF-16 code units'),
+            ({'redact-fields': 'token'},
+             'config redact-fields must be an array'),
+            ({'redact-fields': [3]},
+             'redact-fields[0] must be a string'),
+            ({'redact-fields': ['  ']},
+             'redact-fields[0] must be nonblank'),
+            ({'redact-fields': ['a\u007fb']},
+             'redact-fields[0] must not contain control characters'),
+            ({'redact-fields': ['x' * 257]},
+             'redact-fields[0] must be at most 256 UTF-16 code units'),
+            ({'redact-fields': ['token', 'token']},
+             'duplicates an earlier field'),
+            ({'redact-text': [
+                {'needle': needle, 'replacement': replacement},
+            ], 'format': needle}, 'invalid config format: [REDACTED]'),
+            ({'redact-text': [
+                {'needle': needle, 'replacement': replacement},
+            ], 'bucket-minutes': 0}, 'must be 1..1440'),
+        ]
+        for raw, expected in cases:
+            with self.subTest(raw=raw):
+                config.write_text(json.dumps(raw), encoding='utf8')
+                result = self.analyze('--config', config, ok=False)
+                self.assertIn(expected, result.stderr)
+                self.assertNotIn(needle, result.stderr)
+                self.assertNotIn(replacement, result.stderr)
+                self.assertNotIn('.mbt:', result.stderr)
+                self.assertFalse(self.report.exists())
+        too_many = {'redact-text': [
+            {'needle': 'n%d' % index, 'replacement': '[X]'}
+            for index in range(101)
+        ]}
+        config.write_text(json.dumps(too_many), encoding='utf8')
+        result = self.analyze('--config', config, ok=False)
+        self.assertIn('at most 100 rules', result.stderr)
+        self.assertFalse(self.report.exists())
+        too_many_fields = {'redact-fields': ['f%d' % index
+                                             for index in range(101)]}
+        config.write_text(json.dumps(too_many_fields), encoding='utf8')
+        result = self.analyze('--config', config, ok=False)
+        self.assertIn('at most 100 fields', result.stderr)
+        self.assertFalse(self.report.exists())
+        for flag in ('--redact-text', '--redact-fields'):
+            result = self.analyze(flag, 'value', ok=False)
+            self.assertIn('unknown option: %s' % flag, result.stderr)
+            self.assertFalse(self.report.exists())
+
+    def test_redaction_disabled_keeps_output_byte_identical(self):
+        self.source.write_text((ROOT / 'fixtures/incident.log').read_text(),
+                               encoding='utf8')
+        config = self.root / 'moonlog.json'
+        config.write_text('{}', encoding='utf8')
+        plain_md = self.root / 'plain.md'
+        empty_md = self.root / 'empty.md'
+        plain = self.run_cli('analyze', self.source, '--report', plain_md)
+        empty = self.run_cli('analyze', self.source, '--config', config,
+                             '--report', empty_md)
+        self.assertEqual(plain_md.read_text(), empty_md.read_text())
+        self.assertEqual(self.report_summary(plain.stdout),
+                         self.report_summary(empty.stdout))
+        self.assertNotIn('Redaction:', plain_md.read_text())
+        self.assertNotIn('Redaction:', plain.stdout)
+        self.assertNotIn('Redaction:', empty.stdout)
+        plain_json = self.root / 'plain.json'
+        empty_json = self.root / 'empty.json'
+        self.run_cli('analyze', self.source, '--report', plain_json,
+                     '--format', 'json')
+        self.run_cli('analyze', self.source, '--config', config,
+                     '--report', empty_json, '--format', 'json')
+        plain_doc = json.loads(plain_json.read_text())
+        empty_doc = json.loads(empty_json.read_text())
+        self.assertEqual(plain_doc, empty_doc)
+        self.assertNotIn('redaction', plain_doc)
+
+    def test_redaction_applies_to_error_diagnostics(self):
+        source = self.root / 'pathsecret-input.log'
+        source.write_text('2026-10-28 08:00:00 [INFO] ready\n',
+                          encoding='utf8')
+        config = self.root / 'moonlog.json'
+        config.write_text(json.dumps({
+            'redact-text': [
+                {'needle': 'pathsecret', 'replacement': '[PATH]'},
+            ],
+        }), encoding='utf8')
+        missing = self.root / 'pathsecret-missing.log'
+        result = self.run_cli('analyze', missing, '--config', config,
+                              '--report', self.report, ok=False)
+        self.assertIn('[REDACTED]', result.stderr)
+        self.assertNotIn('[PATH]', result.stderr)
+        self.assertNotIn('pathsecret', result.stderr)
+        self.assertFalse(self.report.exists())
+        output_dir = self.root / 'pathsecret-dir'
+        output_dir.mkdir()
+        result = self.run_cli('analyze', source, '--config', config,
+                              '--report', output_dir, ok=False)
+        self.assertIn('[REDACTED]', result.stderr)
+        self.assertNotIn('[PATH]', result.stderr)
+        self.assertNotIn('pathsecret', result.stderr)
+        self.assertTrue(output_dir.is_dir())
+        alias = self.root / 'pathsecret-alias.md'
+        os.link(source, alias)
+        result = self.run_cli('analyze', source, '--config', config,
+                              '--report', alias, ok=False)
+        self.assertIn('[REDACTED]', result.stderr)
+        self.assertNotIn('[PATH]', result.stderr)
+        self.assertNotIn('pathsecret', result.stderr)
+
+    def test_redaction_help_is_config_only(self):
+        for args in [('--help',), ('analyze', '--help')]:
+            with self.subTest(args=args):
+                text = self.run_cli(*args).stdout
+                self.assertIn('Redaction is config-file only', text)
+                self.assertIn('redact-text', text)
+                self.assertIn('redact-fields', text)
+                self.assertIn('shell history', text)
+                self.assertIn('not a guarantee', text)
+
     def test_invalid_or_missing_format_fails_before_writing(self):
         self.source.write_text('2026-10-28 08:00:00 [INFO] ready\n', encoding='utf8')
         cases = [

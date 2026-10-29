@@ -32,12 +32,41 @@ fn safe_markdown(text : String) -> String {
 }
 
 ///|
-fn code_fence(file_windows : Array[FileContextWindow]) -> String {
+fn redaction_enabled(redactor : Redactor, fields : Array[String]) -> Bool {
+  redactor.enabled() || !fields.is_empty()
+}
+
+///|
+fn redact_raw_line(
+  redactor : Redactor,
+  fields : Array[String],
+  raw : String,
+) -> String {
+  if fields.is_empty() {
+    redactor.apply(raw)
+  } else {
+    redactor.json_line(raw, fields)
+  }
+}
+
+///|
+fn redacted_context_lines(
+  file_windows : Array[FileContextWindow],
+  redactor : Redactor,
+  fields : Array[String],
+) -> Array[Array[String]] {
+  file_windows.map(fw => {
+    fw.window.lines.map(line => redact_raw_line(redactor, fields, line.text))
+  })
+}
+
+///|
+fn code_fence(lines_by_window : Array[Array[String]]) -> String {
   let mut longest = 2
-  for file_window in file_windows {
-    for line in file_window.window.lines {
+  for lines in lines_by_window {
+    for text in lines {
       let mut run = 0
-      for ch in line.text.iter() {
+      for ch in text.iter() {
         if ch == '`' {
           run += 1
           if run > longest {
@@ -93,6 +122,8 @@ pub fn markdown_report(
   scans~ : Int32 = 2,
   selected_signature~ : String? = None,
   signature_comparisons~ : Array[SignatureComparison] = [],
+  redactor~ : Redactor = Redactor::none(),
+  redact_fields~ : Array[String] = [],
 ) -> String {
   let out = StringBuilder()
   fn line(text : String) -> Unit {
@@ -100,6 +131,7 @@ pub fn markdown_report(
     out.write_char('\n')
   }
   let c = analysis.config
+  let redaction = redaction_enabled(redactor, redact_fields)
   let overall = analysis.log_error_ratio()
   let context_targets = if context_mode == Spikes {
     "ERROR + FATAL records inside detected spikes"
@@ -115,14 +147,21 @@ pub fn markdown_report(
   line("## Summary")
   line("")
   if sources.length() == 1 {
-    line("- Source: \{safe_markdown(sources[0])}")
+    line("- Source: \{safe_markdown(redactor.apply(sources[0]))}")
   } else {
-    line("- Sources: \{sources.map(fn(s) { safe_markdown(s) }).join(", ")}")
+    line(
+      "- Sources: \{sources.map(fn(s) { safe_markdown(redactor.apply(s)) }).join(", ")}",
+    )
   }
   line("- Engine: MoonLog 0.1.0 / native MoonBit")
   line(
     "- JSON fields (exact top-level string keys; text logs unaffected): \{safe_markdown(analysis.json_fields.label())}",
   )
+  if redaction {
+    line(
+      "- Redaction: output-only best-effort; \{redactor.rule_count()} literal rule(s), \{redact_fields.length()} JSON field rule(s) (raw JSON context lines only); not a guarantee that all sensitive data was removed.",
+    )
+  }
   line("- Lines scanned: \{analysis.total}")
   line("- Lines matching filters: \{analysis.matched}")
   line("- Matched lines without a valid timestamp: \{analysis.untimed}")
@@ -175,7 +214,7 @@ pub fn markdown_report(
     "- Level: \{match analysis.filter.level {Some(l) => l.label(); None => "all"}}",
   )
   line(
-    "- Message keyword (case-sensitive): \{safe_markdown(analysis.filter.keyword)}",
+    "- Message keyword (case-sensitive): \{safe_markdown(redactor.apply(analysis.filter.keyword))}",
   )
   line(
     "- From (inclusive minute): \{match analysis.filter.from {Some(t) => format_time(t); None => "unbounded"}}",
@@ -242,7 +281,7 @@ pub fn markdown_report(
           break
         }
         let s = signatures[j]
-        line("| \{safe_markdown(s.text)} | \{s.count} |")
+        line("| \{safe_markdown(redactor.apply(s.text))} | \{s.count} |")
       }
       if signatures.is_empty() || signatures.length() > 10 || omitted > 0 {
         line("")
@@ -357,13 +396,13 @@ pub fn markdown_report(
       break
     }
     let s = analysis.signatures[i]
-    line("| \{safe_markdown(s.text)} | \{s.count} |")
+    line("| \{safe_markdown(redactor.apply(s.text))} | \{s.count} |")
   }
   line("")
   if selected_signature is Some(signature) {
     line("## Selected signature comparison")
     line("")
-    line("Selected signature: `\{safe_markdown(signature)}`")
+    line("Selected signature: `\{safe_markdown(redactor.apply(signature))}`")
     line("")
     line(
       "Matched exactly against the complete normalized signature: the level prefix plus the message with decimal runs replaced by `#`. Partial messages, bare message text and other levels do not match, and the value is used as given — it is never re-normalized.",
@@ -429,7 +468,7 @@ pub fn markdown_report(
   )
   if selected_signature is Some(signature) {
     line(
-      "Targets are further restricted to the exact signature `\{safe_markdown(signature)}`; context lines stay unfiltered.",
+      "Targets are further restricted to the exact signature `\{safe_markdown(redactor.apply(signature))}`; context lines stay unfiltered.",
     )
   }
   line("")
@@ -437,7 +476,7 @@ pub fn markdown_report(
     match selected_signature {
       Some(signature) =>
         line(
-          "No context matched the selected signature `\{safe_markdown(signature)}` in this mode and filter set. Other signatures may still be failing; this only means no target line was sampled.",
+          "No context matched the selected signature `\{safe_markdown(redactor.apply(signature))}` in this mode and filter set. Other signatures may still be failing; this only means no target line was sampled.",
         )
       None =>
         line(
@@ -449,26 +488,28 @@ pub fn markdown_report(
         )
     }
   }
-  let fence = code_fence(file_windows)
+  let rendered = redacted_context_lines(file_windows, redactor, redact_fields)
+  let fence = code_fence(rendered)
   for i in 0..<file_windows.length() {
     let file_window = file_windows[i]
     let window = file_window.window
     line("### Window \{i+1}")
     line("")
-    line("Source: \{safe_markdown(file_window.source)}")
+    line("Source: \{safe_markdown(redactor.apply(file_window.source))}")
     line("")
     line(
       "Target source lines: \{window.targets.map(fn(n){n.to_string()}).join(", ")}. `>` marks sampled targets.",
     )
     line("")
     line(fence + "text")
-    for source_line in window.lines {
+    for j in 0..<window.lines.length() {
+      let source_line = window.lines[j]
       let mark = if window.targets.contains(source_line.number) {
         ">"
       } else {
         " "
       }
-      line("\{mark} \{source_line.number}: \{source_line.text}")
+      line("\{mark} \{source_line.number}: \{rendered[i][j]}")
     }
     line(fence)
     line("")

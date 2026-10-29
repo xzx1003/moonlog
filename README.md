@@ -33,7 +33,7 @@ moonlog analyze old.log app.log --report incident.md
 
 默认情况下，MoonLog 不会联网。输入日志、分析过程和生成的报告均保留在本机。为避免意外覆盖数据，已有报告文件不会被覆盖；每次分析请指定新的输出文件名。
 
-报告会包含原始日志片段，分享前请检查其中是否存在业务数据、凭据或其他敏感信息。
+报告会包含原始日志片段，分享前请检查其中是否存在业务数据、凭据或其他敏感信息。可选的字面替换与 JSON 字段脱敏只能通过配置文件启用，规则不会经过命令行参数；它们是输出层的尽力而为措施，不保证清除所有敏感信息，也不改变统计结果。
 
 ## 当前实现
 
@@ -54,6 +54,15 @@ moonlog analyze old.log app.log --report incident.md
 - 统计结果、错误聚合和尖峰检测使用同一组过滤条件；只有日志错误占比例外，它按过滤前的观察口径统计（见下文「日志错误占比」）。
 - 时间桶按 UTC 对齐，默认每桶 5 分钟；缺失的时间桶会补零，乱序记录按时间排序后参与统计。
 - 错误签名以级别前缀开头，仅将消息中的连续十进制数字替换为 `#`，不尝试推断根因。签名按出现次数排序。
+
+**输出脱敏（可选）**
+
+- 脱敏规则只能写在 `--config` 指定的 JSON 文件中，命令行不接受 `--redact-text` 或 `--redact-fields`，避免凭据进入 shell history。
+- `redact-text` 是有序的字面替换数组，元素为 `{"needle": "...", "replacement": "..."}`。它作用于来源路径、关键词、选定签名、排名签名、上下文文本、报告路径提示和会回显这些内容的错误信息。
+- `redact-fields` 是 JSON 字段名数组，只在上下文中的原始 JSON 行上递归匹配精确字段名（如 `token`），并把整个值替换为 `[REDACTED]`。合法 JSON 中的嵌套字段也会处理；非法 JSON 只应用字面规则。
+- 字段规则不会按字段名递归改写整份报告，因此不会破坏报告结构；它们也不会作用于解析后的消息或错误签名。字段值如果进入了消息或签名，必须用 `redact-text` 覆盖。
+- 脱敏只影响渲染输出，源日志、扫描次数、计数、尖峰、签名分组、签名对比和目标选择都保持原样。
+- 启用后 Markdown 和终端摘要会显示规则数量与免责声明；JSON 报告增加 `redaction` 元数据。元数据只包含规则数量和“不保证清除所有敏感信息”的说明，不写入规则、字段名、needle 或 replacement。
 
 **错误尖峰检测**
 
@@ -176,6 +185,8 @@ JSON 记录默认从 `ts`、`level` 和 `msg` 三个顶层字符串字段读取�
 | `--signature` | 完整错误签名，用于限定上下文目标并输出各尖峰的对比 |
 | `--from` / `--to` | 限定分析的时间范围 |
 
+`redact-text` 和 `redact-fields` 只能写在配置文件中，不是命令行参数；规则内容不会出现在诊断信息里。
+
 时间覆盖范围根据时间筛选条件内的全部有效时间戳确定，级别和关键词过滤不会改变时间轴。因此，即使健康期的日志没有匹配关键词，其对应的零错误时间桶仍可参与基线计算。
 
 时间桶中的错误计数则只统计满足全部过滤条件的记录。上下文采集使用另一套规则：目标行必须满足过滤条件；`spikes` 模式还要求位于尖峰区间内，`errors` 模式则接受所有匹配的 ERROR/FATAL 记录。周边上下文保留物理相邻行，不再应用这些过滤条件。
@@ -205,7 +216,7 @@ JSON 记录默认从 `ts`、`level` 和 `msg` 三个顶层字符串字段读取�
 
 ### Markdown
 
-Markdown 报告包含本次分析的参数与过滤条件（含上下文模式）、日志计数、尖峰区间、每个尖峰内独立的签名排名（最多前 10 项）、全局签名排名、日志错误占比（全范围/各尖峰/各观察时间桶）和原始上下文，结构见 [`docs/example-report.md`](docs/example-report.md)。报告摘要列出有效的 JSON 字段映射（默认 `time=ts; level=level; message=msg`）。观察时间桶的表按前 50 个展示，超出时注明截断，完整数据在 JSON 中。
+Markdown 报告包含本次分析的参数与过滤条件（含上下文模式）、日志计数、尖峰区间、每个尖峰内独立的签名排名（最多前 10 项）、全局签名排名、日志错误占比（全范围/各尖峰/各观察时间桶）和原始上下文，结构见 [`docs/example-report.md`](docs/example-report.md)。报告摘要列出有效的 JSON 字段映射（默认 `time=ts; level=level; message=msg`）。启用脱敏时摘要还会增加 `Redaction:` 行，说明字面规则数、JSON 字段规则数和免责声明。观察时间桶的表按前 50 个展示，超出时注明截断，完整数据在 JSON 中。
 
 指定 `--signature` 时，报告在全局排名之后多出一节「Selected signature comparison」：每个尖峰一组基线/尖峰窗口表格，加一行频率倍数。示例报告即由 `./bin/moonlog analyze fixtures/incident.log --report incident.md --signature 'ERROR: database timeout retry=#'` 生成。
 
@@ -315,6 +326,8 @@ JSON 报告由核心的 `ReportResult::json_report()` 生成，文件内容整�
 
 示例为节选：`buckets`、`observation_buckets`、`spikes`、`signatures` 和 `context_windows[].lines` 只保留了部分条目；`selected_signature` 与 `signature_comparisons` 来自同一份带 `--signature` 的运行。
 
+启用脱敏后，`source`/`sources`、`filter.keyword`、`selected_signature`、签名文本和上下文 `source` 都会先执行字面替换；`context_windows[].lines[].text` 先执行字面替换，若配置了 `redact-fields`，合法 JSON 行还会把指定字段的整个值替换为 `[REDACTED]`。字段规则只作用于这些原始上下文行，不会按字段名递归改写报告自身的键。`redaction` 元数据只在启用时出现。
+
 字段说明：
 
 | 字段 | 说明 |
@@ -338,8 +351,9 @@ JSON 报告由核心的 `ReportResult::json_report()` 生成，文件内容整�
 | `observation_buckets` | 观察口径：每个时间桶的起止（结束不含）与 `log_error_ratio`，不受级别/关键词过滤影响 |
 | `spikes` | 尖峰区间、错误数、单桶峰值、起始基线、该区间的 `log_error_ratio`，以及该尖峰内**全部已保留**签名和容量遗漏数 |
 | `signatures` | 全局错误签名排名，同样为全部已保留项 |
-| `context_windows` | 采样到的上下文窗口：每个窗口含所属 `source`、目标行号与被采集的原始行（`number` 为文件内行号） |
+| `context_windows` | 采样到的上下文窗口：每个窗口含所属 `source`、目标行号与被采集的原始行（`number` 为文件内行号）；启用脱敏时文本已按规则处理 |
 | `diagnostic_note` | 结论边界说明，提醒尖峰不代表根因 |
+| `redaction` | 仅在启用脱敏时出现：`literal_rule_count`、`json_field_rule_count` 与免责声明；不含规则、字段名或替换值 |
 
 `log_error_ratio` 对象三个字段的含义：
 
@@ -359,7 +373,7 @@ JSON 报告由核心的 `ReportResult::json_report()` 生成，文件内容整�
 - 数组顺序稳定（文件顺序、时间、排名），但 JSON 对象的键顺序不作为接口保证。
 - `spikes[].signatures` 和 `signatures` 输出全部已保留签名，不受终端摘要的 3 项、Markdown 表格的 10 项展示限制；容量遗漏由 `omitted_signature_occurrences` 和 `omitted_global_signature_occurrences` 单独记录。
 - `buckets` 是过滤后的统计，`observation_buckets` 和所有 `log_error_ratio` 是过滤前的观察口径：`--level`、`--keyword` 只影响前者。
-- `context_windows[].lines` 保存**未经过滤的原始上下文行**，`source`、签名等字段也保留输入原文。这些内容可能含业务数据或凭据，分享前请自行检查。
+- `context_windows[].lines` 保存**未经过滤的上下文行**；未启用脱敏时是原始输入原文，启用后按字面规则和 `redact-fields` 处理。`source`、签名等字段同样可能含业务数据或凭据，分享前请自行检查，并注意脱敏不保证清除全部敏感信息。
 - `config` 只覆盖核心 `result.config` 中的字段。`--max-line-bytes` 是宿主读取参数，在进入分析前生效，不在 `result.config` 中，因此 JSON 里没有它；JSON 不代表所有 CLI 参数都已导出。
 - `selected_signature` 只有在传入 `--signature` 时才有值，`signature_comparisons` 只有此时才非空。指定签名只影响上下文目标与这一组对比，`summary`、`spikes`、`buckets`、`signatures` 等原有统计保持不变。
 
@@ -393,6 +407,7 @@ Markdown report written to incident.md.
 - 没有任何尖峰时，摘要只说明规则未命中，不代表服务正常。
 - 带 `--signature` 时追加选定签名与各尖峰的对比行：两侧窗口起止（结束不含）、分钟数、次数与每分钟频率；基线为零时倍数显示 `N/A`，并在同一行给出两侧的次数。没有尖峰时只说明没有比较窗口，不会声称该签名从未出现。
 - 签名文本、输入路径和报告路径来自用户输入，打印前会转义换行、回车、制表符、ESC 等控制字符（如 `\x1b`、`\n`、`\t`），避免日志内容伪造终端输出或触发转义序列。JSON 文件保留原文，不做这种展示转义。
+- 启用配置脱敏时，来源路径、签名文本和报告路径提示会先执行字面替换，再转义输出；摘要还会增加一行 `Redaction:`，只显示字面规则数、JSON 字段规则数和免责声明。字段规则不适用于终端摘要里的签名或路径，它们需要 `redact-text` 字面规则。
 
 ## 流式处理与资源限制
 
@@ -416,8 +431,12 @@ MoonLog 使用多遍扫描完成分析，避免将全部原始日志长期保存
 | 尖峰内签名组合数量（全部尖峰合计） | 1,000 |
 | 上下文采样目标数 | 20 |
 | 错误签名长度 | 消息部分 512 字符（完整签名含级别前缀，最多 519 字符） |
+| `redact-text` 规则数 | 100 |
+| 单条 needle / replacement 长度 | 各 1,024 个 UTF-16 单元 |
+| `redact-fields` 字段数 | 100 |
+| 单个脱敏字段名长度 | 256 个 UTF-16 单元 |
 
-可通过 `--max-line-bytes`、`--max-buckets`、`--max-signatures` 和 `--max-samples` 调整相应限制，具体取值仍受参数自身上限约束。
+可通过 `--max-line-bytes`、`--max-buckets`、`--max-signatures` 和 `--max-samples` 调整相应限制，具体取值仍受参数自身上限约束。脱敏规则同样有上限：`redact-text` 最多 100 条，needle 与 replacement 各最长 1,024 个 UTF-16 单元；`redact-fields` 最多 100 个字段，字段名最长 256 个 UTF-16 单元。needle 不能为空或含换行，replacement 不能含控制字符且必须与 needle 不同；字段名不能空白、重复或含 C0/DEL 控制字符。配置文本整体仍限制为 64 KiB。
 
 超过限制的输入会报错，不会静默丢弃超长行或超出范围的数据。错误签名达到容量上限后，未保留签名的出现次数会计入遗漏计数。
 
@@ -532,6 +551,20 @@ JSON 字段键按字符串校验，并遵守与 CLI 相同的字段名规则：�
 未知键、重复键、错误类型及越界值会报错，即使该值被 CLI 覆盖也必须合法。
 输入文件、报告路径、过滤条件均须在命令行指定，配置不能改变数据读写目标。
 配置文本限制为 64 KiB（按读取后的字符计），单行仍受默认 65,536 字节读取限制。
+
+脱敏键只允许出现在配置文件中，没有对应的 CLI 参数：
+
+```json
+{
+  "redact-text": [
+    {"needle": "alice@example.com", "replacement": "[EMAIL]"},
+    {"needle": "token=abc123", "replacement": "token=[REDACTED]"}
+  ],
+  "redact-fields": ["token", "password", "authorization"]
+}
+```
+
+`redact-text` 必须是对象数组（空数组合法，相当于不启用字面规则），每个对象只能有 `needle` 和 `replacement` 两个字符串键。替换按数组顺序执行，规则内容不会写入报告、元数据或诊断；配置错误只报告位置（如 `redact-text[0]`），不回显 needle 或 replacement。`redact-fields` 必须是字符串数组（空数组合法），字段名精确匹配、区分大小写，只作用于上下文中的原始 JSON 行。字段规则无法覆盖解析后的消息或错误签名，字段值如果出现在这些位置，需要增加对应的 `redact-text` 字面规则。脱敏是输出层的尽力而为措施，不改变源日志或任何统计结果，也不保证清除所有敏感信息。诊断信息对命中的 needle 使用中性占位符 `[REDACTED]`，而不使用配置的 replacement。
 
 ## 安装包与发布流程
 

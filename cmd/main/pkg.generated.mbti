@@ -8,6 +8,10 @@ package "moonlog/cli/cmd/main"
 // Types and methods
 type FileSnapshot
 
+type PreparedArgs
+
+type RedactionConfig
+
 // Type aliases
 
 // Traits
