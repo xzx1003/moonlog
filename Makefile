@@ -30,3 +30,7 @@ web-bench: web-build
 
 web-serve:
 	python3 -m http.server 8000
+
+.PHONY: bench
+bench: build
+	python3 scripts/bench_cli.py
