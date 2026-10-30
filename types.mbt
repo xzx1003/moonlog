@@ -63,7 +63,26 @@ pub fn Filter::accepts(self : Filter, record : Record) -> Bool {
 }
 
 ///|
+pub(all) enum Detector {
+  MovingAverage
+  Ewma
+  Mad
+} derive(Eq, Debug)
+
+///|
+pub fn Detector::label(self : Detector) -> String {
+  match self {
+    MovingAverage => "moving-average"
+    Ewma => "ewma"
+    Mad => "mad"
+  }
+}
+
+///|
 pub(all) struct Config {
+  detector : Detector
+  ewma_alpha : Double
+  mad_threshold : Double
   bucket_minutes : Int32
   baseline_buckets : Int32
   multiplier : Int32
@@ -76,6 +95,9 @@ pub(all) struct Config {
 
 ///|
 pub fn Config::new(
+  detector~ : Detector = MovingAverage,
+  ewma_alpha~ : Double = 0.3,
+  mad_threshold~ : Double = 3.0,
   bucket_minutes~ : Int32 = 5,
   baseline_buckets~ : Int32 = 6,
   multiplier~ : Int32 = 3,
@@ -85,6 +107,12 @@ pub fn Config::new(
   max_buckets~ : Int32 = 100000,
   max_signatures~ : Int32 = 1000,
 ) -> Config raise {
+  guard ewma_alpha > 0.0 && ewma_alpha <= 1.0 else {
+    fail("EWMA alpha must be > 0 and <= 1")
+  }
+  guard mad_threshold > 0.0 && mad_threshold <= 1000.0 else {
+    fail("MAD threshold must be > 0 and <= 1000")
+  }
   guard bucket_minutes > 0 && bucket_minutes <= 1440 else {
     fail("bucket minutes must be 1..1440")
   }
@@ -106,6 +134,9 @@ pub fn Config::new(
     fail("max signatures must be 1..10000")
   }
   {
+    detector,
+    ewma_alpha,
+    mad_threshold,
     bucket_minutes,
     baseline_buckets,
     multiplier,
@@ -196,3 +227,11 @@ pub extend ContextMode with Eq::{equal, not_equal}
 ///|
 #deprecated
 pub extend ContextMode with @debug.Debug::{to_repr}
+
+///|
+#deprecated
+pub extend Detector with Eq::{equal, not_equal}
+
+///|
+#deprecated
+pub extend Detector with @debug.Debug::{to_repr}

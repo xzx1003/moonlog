@@ -191,15 +191,35 @@ pub fn markdown_report(
   line(
     "- Bucket size: \{c.bucket_minutes} minutes, UTC-aligned; empty buckets count as zero.",
   )
-  line(
-    "- Baseline: previous \{c.baseline_buckets} complete buckets, excluding the current bucket.",
-  )
-  line(
-    "- Spike: ERROR + FATAL strictly greater than \{c.multiplier} times baseline, with at least \{c.min_errors} errors.",
-  )
-  line(
-    "- Zero baseline: trigger at minimum error count. Warm-up: no detection until a full baseline exists.",
-  )
+  if c.detector == MovingAverage {
+    line(
+      "- Baseline: previous \{c.baseline_buckets} complete buckets, excluding the current bucket.",
+    )
+    line(
+      "- Spike: ERROR + FATAL strictly greater than \{c.multiplier} times baseline, with at least \{c.min_errors} errors.",
+    )
+    line(
+      "- Zero baseline: trigger at minimum error count. Warm-up: no detection until a full baseline exists.",
+    )
+  } else {
+    line(
+      "- Detector: \{c.detector.label()}; ERROR + FATAL counts, minimum \{c.min_errors} errors; warm-up \{c.baseline_buckets} buckets.",
+    )
+    match c.detector {
+      Ewma =>
+        line(
+          "- EWMA: initial warm-up mean; alpha=\{c.ewma_alpha}; strictly greater than \{c.multiplier} times previous EWMA; update after testing, including anomalies.",
+        )
+      Mad =>
+        line(
+          "- MAD: previous \{c.baseline_buckets} buckets; strictly greater than median + \{c.mad_threshold} * 1.4826 * MAD; zero MAD uses strict greater than median.",
+        )
+      _ => ()
+    }
+    line(
+      "- Baseline shown for a spike is its first detected bucket's reference level, not a healthy-period estimate. Counts are not request failure rates.",
+    )
+  }
   line(
     "- Adjacent flagged buckets merge; incident end is the exclusive bucket boundary.",
   )

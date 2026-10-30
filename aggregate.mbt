@@ -165,6 +165,9 @@ pub fn Analyzer::finish(self : Analyzer) -> Analysis {
 
 ///|
 pub fn detect_spikes(buckets : Array[Bucket], config : Config) -> Array[Spike] {
+  if config.detector != MovingAverage {
+    return detect_adaptive_spikes(buckets, config)
+  }
   let spikes : Array[Spike] = []
   let n = config.baseline_buckets
   let mut sum = 0L

@@ -143,6 +143,22 @@ fn terminal_summary(
   line(
     "JSON fields: \{terminal_escape(summary.json_fields.label())} (exact top-level string keys; text logs unaffected).",
   )
+  if summary.detector != @engine.MovingAverage {
+    line(
+      "Detector: \{summary.detector.label()}; error counts, not request failure rates.",
+    )
+    match summary.detector {
+      @engine.Ewma =>
+        line(
+          "EWMA alpha: \{summary.ewma_alpha}; threshold: strictly greater than \{summary.detector_multiplier} times prior EWMA; update after testing, including anomalies.",
+        )
+      @engine.Mad =>
+        line(
+          "MAD threshold: median + \{summary.mad_threshold} * 1.4826 * MAD; zero MAD: strictly greater than median; multiplier ignored.",
+        )
+      _ => ()
+    }
+  }
   if summary.redactor.enabled() || !summary.redact_fields.is_empty() {
     line(
       "Redaction: output-only best-effort; \{summary.redactor.rule_count()} literal rule(s), \{summary.redact_fields.length()} JSON field rule(s) (raw JSON context lines only); not a guarantee that all sensitive data was removed.",

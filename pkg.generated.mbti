@@ -75,6 +75,9 @@ pub fn Bucket::log_error_ratio(Self) -> LogErrorRatio
 pub fn Bucket::to_repr(Self) -> @debug.Repr
 
 pub(all) struct Config {
+  detector : Detector
+  ewma_alpha : Double
+  mad_threshold : Double
   bucket_minutes : Int32
   baseline_buckets : Int32
   multiplier : Int32
@@ -84,7 +87,7 @@ pub(all) struct Config {
   max_buckets : Int32
   max_signatures : Int32
 } derive(@debug.Debug)
-pub fn Config::new(bucket_minutes? : Int32, baseline_buckets? : Int32, multiplier? : Int32, min_errors? : Int32, context? : Int32, max_samples? : Int32, max_buckets? : Int32, max_signatures? : Int32) -> Self raise
+pub fn Config::new(detector? : Detector, ewma_alpha? : Double, mad_threshold? : Double, bucket_minutes? : Int32, baseline_buckets? : Int32, multiplier? : Int32, min_errors? : Int32, context? : Int32, max_samples? : Int32, max_buckets? : Int32, max_signatures? : Int32) -> Self raise
 #deprecated
 pub fn Config::to_repr(Self) -> @debug.Repr
 
@@ -120,6 +123,19 @@ pub(all) struct ContextWindow {
   targets : Array[Int64]
   mut end_line : Int64
 }
+
+pub(all) enum Detector {
+  MovingAverage
+  Ewma
+  Mad
+} derive(Eq, @debug.Debug)
+#deprecated
+pub fn Detector::equal(Self, Self) -> Bool
+pub fn Detector::label(Self) -> String
+#deprecated
+pub fn Detector::not_equal(Self, Self) -> Bool
+#deprecated
+pub fn Detector::to_repr(Self) -> @debug.Repr
 
 pub(all) struct FileContextWindow {
   source : String
@@ -344,6 +360,10 @@ pub(all) struct SpikeSummary {
 }
 
 pub(all) struct TerminalSummary {
+  detector : Detector
+  ewma_alpha : Double
+  mad_threshold : Double
+  detector_multiplier : Int32
   log_error_ratio : LogErrorRatio
   source : String
   sources : Array[String]

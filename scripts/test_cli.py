@@ -44,6 +44,67 @@ class CLI(unittest.TestCase):
         self.source = self.root / 'input.log'
         self.report = self.root / 'report.md'
 
+    def test_detector_config_override_and_output_rules(self):
+        self.source.write_text('2026-10-28 08:00:00 [ERROR] baseline\n' +
+                               '2026-10-28 08:05:00 [ERROR] burst\n' * 3)
+        config = self.root / 'config.json'
+        config.write_text(json.dumps({'detector': 'mad', 'baseline-buckets': 1,
+                                      'mad-threshold': 2.5, 'ewma-alpha': 0.5}))
+        docs = {}
+        for detector in ['moving-average', 'ewma', 'mad']:
+            report = self.root / (detector + '.json')
+            result = self.analyze_to(report, '--config', config, '--detector', detector,
+                                     '--format', 'json')
+            doc = json.loads(report.read_text()); docs[detector] = doc
+            if detector == 'moving-average':
+                self.assertNotIn('detector', doc['config'])
+                self.assertNotIn('Detector:', result.stdout)
+            else:
+                self.assertEqual(doc['config']['detector'], detector)
+                self.assertIn('Detector: ' + detector, result.stdout)
+        self.assertEqual(len(docs['mad']['spikes']), 1)
+        self.assertEqual(len(docs['ewma']['spikes']), 0)
+        self.assertEqual(docs['mad']['config']['mad_threshold'], 2.5)
+        self.assertEqual(docs['ewma']['config']['ewma_alpha'], 0.5)
+        for doc in docs.values():
+            self.assertEqual({k: doc['summary'][k] for k in ['total', 'matched', 'untimed', 'errors', 'log_error_ratio']},
+                             {k: docs['mad']['summary'][k] for k in ['total', 'matched', 'untimed', 'errors', 'log_error_ratio']})
+        md = self.root / 'mad.md'
+        self.analyze_to(md, '--config', config)
+        self.assertIn('median + 2.5 * 1.4826 * MAD', md.read_text())
+
+    def test_detector_default_output_compatibility(self):
+        self.source.write_text((ROOT / 'fixtures/incident.log').read_text())
+        for fmt in ['json', 'markdown']:
+            first = self.root / ('default.' + fmt); second = self.root / ('explicit.' + fmt)
+            a = self.analyze_to(first, '--format', fmt)
+            b = self.analyze_to(second, '--format', fmt, '--detector', 'moving-average')
+            self.assertEqual(first.read_bytes(), second.read_bytes())
+            self.assertEqual(self.report_summary(a.stdout), self.report_summary(b.stdout))
+
+    def test_detector_invalid_parameters_do_not_write_reports(self):
+        self.source.write_text('2026-10-28 08:00:00 [INFO] ok\n')
+        for flag, values in [('--detector', ['unknown', 'EWMA', '']),
+                             ('--ewma-alpha', ['0', '-1', '1.1', 'NaN', 'Infinity', '1e999', '"0.5"', 'null']),
+                             ('--mad-threshold', ['0', '-1', '1001', 'NaN', 'Infinity', 'false'])]:
+            for value in values:
+                with self.subTest(flag=flag, value=value):
+                    self.analyze(flag, value, ok=False)
+                    self.assertFalse(self.report.exists())
+            self.analyze(flag, ok=False)
+            self.analyze(flag, 'mad' if flag == '--detector' else '0.5', flag,
+                         'mad' if flag == '--detector' else '0.5', ok=False)
+
+    def test_detector_config_rejects_invalid_layer_even_when_overridden(self):
+        self.source.write_text('2026-10-28 08:00:00 [INFO] ok\n')
+        config = self.root / 'config.json'
+        for settings in [{'detector': 1}, {'detector': 'bad'}, {'ewma-alpha': '0.5'},
+                         {'ewma-alpha': 0}, {'mad-threshold': 1001}]:
+            config.write_text(json.dumps(settings))
+            self.analyze('--config', config, '--detector', 'mad', '--ewma-alpha', '0.5',
+                         '--mad-threshold', '3', ok=False)
+            self.assertFalse(self.report.exists())
+
     def run_cli(self, *options, ok=True):
         result = subprocess.run([str(BINARY), *map(str, options)],
                                 capture_output=True, text=True, timeout=15)

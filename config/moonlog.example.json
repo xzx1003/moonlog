@@ -1,4 +1,7 @@
 {
+  "detector": "moving-average",
+  "ewma-alpha": 0.3,
+  "mad-threshold": 3,
   "bucket-minutes": 5,
   "baseline-buckets": 6,
   "multiplier": 3,

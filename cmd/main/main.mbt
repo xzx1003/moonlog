@@ -7,6 +7,9 @@ const Usage : String =
   #|  --config PATH        Explicit JSON defaults; CLI options override
   #|  --format FORMAT      Report format: markdown or json (default markdown)
   #|  --sampling MODE      Target selection: first or distributed (default first)
+  #|  --detector NAME      moving-average (default), ewma or mad
+  #|  --ewma-alpha X       EWMA weight, 0 < X <= 1 (default 0.3)
+  #|  --mad-threshold X    MAD scale, 0 < X <= 1000 (default 3)
   #|  --bucket-minutes N   Time bucket width (default 5)
   #|  --baseline-buckets N Previous buckets in baseline (default 6)
   #|  --multiplier N       Strict spike multiplier (default 3)
@@ -28,6 +31,10 @@ const Usage : String =
   #|  --from TIMESTAMP     Inclusive UTC minute, e.g. "2026-10-28 08:00:00"
   #|  --to TIMESTAMP       Inclusive UTC minute
   #|  --help               Show this help
+  #|
+  #|Alpha applies only to EWMA; MAD threshold only to MAD. Multiplier is
+  #|ignored by MAD. Valid but inactive parameters are accepted. All detectors
+  #|measure error counts, not request failure rates. See docs/detectors.md.
   #|
   #|JSON fields are exact top-level string keys; "a.b" is a literal key, not a
   #|nested path. There is no fallback to ts/level/msg, no numeric conversion and
@@ -58,6 +65,30 @@ fn positive_or_zero(value : String, flag : String) -> Int32 raise {
   if n < 0 {
     fail("\{flag} must not be negative")
   }
+  n
+}
+
+///|
+fn detector_value(value : String) -> @engine.Detector raise {
+  match value {
+    "moving-average" => @engine.MovingAverage
+    "ewma" => @engine.Ewma
+    "mad" => @engine.Mad
+    _ => fail("unknown detector; expected moving-average, ewma or mad")
+  }
+}
+
+///|
+fn detector_number(value : String, flag : String) -> Double raise {
+  let parsed = @json.parse(value) catch {
+    _ => fail("\{flag} expects a finite JSON number")
+  }
+  let n = match parsed {
+    Number(n, ..) => n
+    _ => fail("\{flag} expects a number")
+  }
+  let high = if flag == "--ewma-alpha" { 1.0 } else { 1000.0 }
+  guard n > 0.0 && n <= high else { fail("\{flag} must be > 0 and <= \{high}") }
   n
 }
 
@@ -150,6 +181,9 @@ fn run(prepared : PreparedArgs) -> Unit raise {
   let mut report = ""
   let mut format = "markdown"
   let mut sampling = @engine.SamplingMode::First
+  let mut detector = @engine.Detector::MovingAverage
+  let mut ewma_alpha = 0.3
+  let mut mad_threshold = 3.0
   let mut bucket_minutes = 5
   let mut baseline_buckets = 6
   let mut multiplier = 3
@@ -200,6 +234,9 @@ fn run(prepared : PreparedArgs) -> Unit raise {
               "unknown sampling mode: \{value}; expected first or distributed",
             )
         }
+      "--detector" => detector = detector_value(value)
+      "--ewma-alpha" => ewma_alpha = detector_number(value, flag)
+      "--mad-threshold" => mad_threshold = detector_number(value, flag)
       "--bucket-minutes" => bucket_minutes = positive_or_zero(value, flag)
       "--baseline-buckets" => baseline_buckets = positive_or_zero(value, flag)
       "--multiplier" => multiplier = positive_or_zero(value, flag)
@@ -270,6 +307,9 @@ fn run(prepared : PreparedArgs) -> Unit raise {
     identities[id] = true
   }
   let config = @engine.Config::new(
+    detector~,
+    ewma_alpha~,
+    mad_threshold~,
     bucket_minutes~,
     baseline_buckets~,
     multiplier~,

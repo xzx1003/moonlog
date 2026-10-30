@@ -68,6 +68,10 @@ pub(all) struct SpikeSummary {
 
 ///|
 pub(all) struct TerminalSummary {
+  detector : Detector
+  ewma_alpha : Double
+  mad_threshold : Double
+  detector_multiplier : Int32
   log_error_ratio : LogErrorRatio
   source : String
   sources : Array[String]
@@ -114,6 +118,10 @@ pub fn ReportResult::summary(self : ReportResult) -> TerminalSummary {
     }
   })
   {
+    detector: a.config.detector,
+    ewma_alpha: a.config.ewma_alpha,
+    mad_threshold: a.config.mad_threshold,
+    detector_multiplier: a.config.multiplier,
     log_error_ratio: a.log_error_ratio(),
     source: if self.sources.length() == 1 {
       self.sources[0]
@@ -230,17 +238,28 @@ pub fn ReportResult::to_json(self : ReportResult) -> Json {
     "sources": Json::array(self.sources.map(s => Json(self.redactor.apply(s)))),
     "sampling": Json(self.sampling.label()),
     "scans": Json(self.scans),
-    "config": Json::object({
-      "bucket_minutes": Json(c.bucket_minutes),
-      "baseline_buckets": Json(c.baseline_buckets),
-      "multiplier": Json(c.multiplier),
-      "min_errors": Json(c.min_errors),
-      "context": Json(c.context),
-      "context_mode": Json(self.context_mode.label()),
-      "max_samples": Json(c.max_samples),
-      "max_buckets": Json(c.max_buckets),
-      "max_signatures": Json(c.max_signatures),
-    }),
+    "config": {
+      let fields : Map[String, Json] = {
+        "bucket_minutes": Json(c.bucket_minutes),
+        "baseline_buckets": Json(c.baseline_buckets),
+        "multiplier": Json(c.multiplier),
+        "min_errors": Json(c.min_errors),
+        "context": Json(c.context),
+        "context_mode": Json(self.context_mode.label()),
+        "max_samples": Json(c.max_samples),
+        "max_buckets": Json(c.max_buckets),
+        "max_signatures": Json(c.max_signatures),
+      }
+      if c.detector != MovingAverage {
+        fields["detector"] = Json(c.detector.label())
+        match c.detector {
+          Ewma => fields["ewma_alpha"] = Json(c.ewma_alpha)
+          Mad => fields["mad_threshold"] = Json(c.mad_threshold)
+          _ => ()
+        }
+      }
+      Json::object(fields)
+    },
     "filter": Json::object({
       "level": match f.level {
         Some(l) => Json(l.label())

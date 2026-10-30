@@ -252,6 +252,18 @@ fn config_args(args : Array[String]) -> PreparedArgs raise {
       let flag = "--" + key
       let rendered : String? = match key {
         "redact-text" | "redact-fields" => None
+        "detector" => {
+          guard value is String(v) else {
+            fail("config detector must be a string")
+          }
+          ignore(detector_value(v))
+          Some(v)
+        }
+        "ewma-alpha" | "mad-threshold" => {
+          let raw = value.stringify()
+          ignore(detector_number(raw, flag))
+          Some(raw)
+        }
         "bucket-minutes"
         | "baseline-buckets"
         | "multiplier"

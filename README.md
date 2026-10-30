@@ -415,6 +415,25 @@ Markdown report written to incident.md.
 - 签名文本、输入路径和报告路径来自用户输入，打印前会转义换行、回车、制表符、ESC 等控制字符（如 `\x1b`、`\n`、`\t`），避免日志内容伪造终端输出或触发转义序列。JSON 文件保留原文，不做这种展示转义。
 - 启用配置脱敏时，来源路径、签名文本和报告路径提示会先执行字面替换，再转义输出；摘要还会增加一行 `Redaction:`，只显示字面规则数、JSON 字段规则数和免责声明。字段规则不适用于终端摘要里的签名或路径，它们需要 `redact-text` 字面规则。
 
+## 可选尖峰检测算法
+
+CLI 默认仍为 `moving-average`，也可用 `--detector ewma` 或 `--detector mad`。三者检测的都是 ERROR/FATAL 日志数量，不是请求失败率；不会自动排除流量或周期变化，也不能保证识别持续故障。
+
+| 参数 | 默认 | 作用 |
+|---|---|---|
+| `--detector` | `moving-average` | `moving-average` / `ewma` / `mad` |
+| `--ewma-alpha` | 0.3 | 仅 EWMA；有限数，0 < alpha <= 1 |
+| `--mad-threshold` | 3 | 仅 MAD；有限数，0 < k <= 1000 |
+
+同名配置键可设置默认值，CLI 覆盖配置。配置层的非法值即使被 CLI 覆盖也会被拒绝。合法但对当前算法无效的参数仍接受：alpha 仅用于 EWMA，MAD threshold 仅用于 MAD，`multiplier` 对 MAD 无效。数值采用 JSON 数字语法，拒绝 NaN、Infinity 和字符串类型。
+
+```bash
+./bin/moonlog analyze fixtures/incident.log --detector ewma --ewma-alpha 0.3 --report ewma.md
+./bin/moonlog analyze fixtures/incident.log --detector mad --mad-threshold 3 --report mad.json --format json
+```
+
+预热、零 MAD、严格阈值和基线更新规则见 [检测算法契约](docs/detectors.md)。MAD 每桶 O(n log n)，n 为基线桶数，不能推断与移动平均同速。非默认算法会在 JSON config、Markdown 和终端中注明有效算法及参数；默认输出保持兼容。浏览器本轮仍使用默认 Moving Average，尚无算法切换入口。公开人工事故标注集与 Precision/Recall/F1 评测尚未建立，因此没有准确率提升的结论。
+
 ## 流式处理与资源限制
 
 MoonLog 使用多遍扫描完成分析，避免将全部原始日志长期保存在内存中。单个输入文件默认使用两遍；多个文件或 `--sampling distributed` 使用三遍。
