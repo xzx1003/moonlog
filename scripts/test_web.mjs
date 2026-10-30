@@ -412,6 +412,17 @@ await test('repeated analysis returns byte-identical JSON', async () => {
   assert.equal(first.chunks, second.chunks);
 });
 
+await test('bundled demo exposes two incidents with default browser parameters', async () => {
+  const bytes = await readFile(resolve(root, 'web/sample.log'));
+  const { report } = await run(await newBridge(), bytes, 'sample.log');
+  assert.equal(report.summary.total, 200);
+  assert.equal(report.summary.errors, 45);
+  assert.equal(report.summary.spike_count, 2);
+  assert.equal(report.spikes[0].errors, 25);
+  assert.equal(report.spikes[1].errors, 20);
+  assert.ok(report.context_windows.length > 0);
+});
+
 await test('page ids are unique and every getElementById target exists', async () => {
   const html = await readFile(resolve(root, 'web/index.html'), 'utf8');
   const app = await readFile(resolve(root, 'web/app.js'), 'utf8');
