@@ -41,3 +41,23 @@ bench-compare:
 	moon build benchmarks/compare --target native --release
 	$(GO) build -o /tmp/moonlog-go-reference benchmarks/compare/main.go
 	python3 benchmarks/compare/run.py --go /tmp/moonlog-go-reference
+
+BENCH_BASELINE ?=
+BENCH_CANDIDATE ?= bin/moonlog
+BENCH_RUNS ?= 5
+BENCH_WARMUPS ?= 1
+BENCH_SEED ?= 20261029
+BENCH_GATE ?=
+BENCH_REG_SIZES ?= 10,100
+BENCH_REG_OUTPUT ?= benchmarks/regression/results.json
+BENCH_REG_LARGE_OUTPUT ?= benchmarks/regression/results-large.json
+
+.PHONY: bench-regression
+bench-regression: build
+	@test -n "$(BENCH_BASELINE)" || { echo "set BENCH_BASELINE=/path/to/previous/moonlog" >&2; exit 2; }
+	python3 benchmarks/regression/run.py --baseline "$(BENCH_BASELINE)" --candidate "$(BENCH_CANDIDATE)" --sizes "$(BENCH_REG_SIZES)" --runs $(BENCH_RUNS) --warmups $(BENCH_WARMUPS) --seed $(BENCH_SEED) --output "$(BENCH_REG_OUTPUT)" $(BENCH_GATE)
+
+.PHONY: bench-regression-large
+bench-regression-large: build
+	@test -n "$(BENCH_BASELINE)" || { echo "set BENCH_BASELINE=/path/to/previous/moonlog" >&2; exit 2; }
+	python3 benchmarks/regression/run.py --baseline "$(BENCH_BASELINE)" --candidate "$(BENCH_CANDIDATE)" --sizes 1024,5120,10240 --allow-large --runs $(BENCH_RUNS) --warmups $(BENCH_WARMUPS) --seed $(BENCH_SEED) --output "$(BENCH_REG_LARGE_OUTPUT)" $(BENCH_GATE)

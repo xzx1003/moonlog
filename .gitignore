@@ -16,3 +16,10 @@ target
 # Downloaded research data and local Python caches.
 /validation/data/
 __pycache__/
+
+# Local regression outputs; benchmarks/regression/results.example.json is curated.
+/benchmarks/regression/results.json
+/benchmarks/regression/results.md
+/benchmarks/regression/results-large.json
+/benchmarks/regression/results-large.md
+/benchmarks/regression/work/
