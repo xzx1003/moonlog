@@ -20,10 +20,10 @@ pub struct Session {
   mut analysis : @cli.Analysis?
   mut signatures : @cli.SpikeSignatureCollector?
   mut phase : Int32
-  mut lines : Int32
-  mut first_lines : Int32
-  mut digest : UInt64
-  mut first_digest : UInt64
+  mut lines : Int64
+  mut first_lines : Int64
+  mut digest : @cli.Sha256
+  mut first_digest : String
   mut bytes : Int64
 }
 pub fn Session::bytes_processed(Self) -> Int64

@@ -29,8 +29,8 @@ pub fn SamplingPlan::new(
   limit : Int32,
   mode : SamplingMode,
 ) -> SamplingPlan raise {
-  guard total >= 0L && total <= 2147483647L else {
-    fail("target total must be 0..2147483647")
+  guard total >= 0L && total <= 9000000000000L else {
+    fail("target total must be 0..9000000000000")
   }
   guard limit >= 0 && limit <= 100 else { fail("sample limit must be 0..100") }
   let count = if total < limit.to_int64() { total.to_int() } else { limit }

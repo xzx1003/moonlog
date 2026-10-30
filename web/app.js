@@ -107,12 +107,16 @@ document.getElementById('load-example').addEventListener('click', async (event) 
   const button = event.currentTarget;
   button.disabled = true;
   try {
-    const response = await fetch(new URL('./sample.log', import.meta.url));
+    const response = await fetch(new URL('./sample.log?demo=20261030-v2', import.meta.url), { cache: 'no-store' });
     if (!response.ok) throw new Error('示例日志加载失败，请稍后重试。');
     if (activeRun) return;
+    const sample = await response.blob();
+    // A demo must not inherit a previous file's filters or tuned thresholds.
+    els.form.reset();
     els.file.value = '';
-    selectFile(new File([await response.blob()], 'sample.log', { type: 'text/plain' }));
+    selectFile(new File([sample], 'sample-3-incidents.log', { type: 'text/plain' }));
     els.maxSamples.value = '100';
+    els.status.textContent = '示例已载入：335 行、3 段尖峰；已重置参数与筛选，样本上限 100。';
     currentStep = 1;
     renderStep(true);
   } catch (error) {

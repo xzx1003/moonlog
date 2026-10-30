@@ -58,11 +58,11 @@ test "10,000 lines aggregate exactly into UTC five-minute buckets" {
   assert_eq(result.matched, 10000)
   assert_eq(result.buckets.length(), 288)
   assert_eq(
-    result.buckets.map(fn(b) { b.total }).fold(init=0, fn(sum, n) { sum + n }),
+    result.buckets.map(fn(b) { b.total }).fold(init=0L, fn(sum, n) { sum + n }),
     10000,
   )
   assert_eq(
-    result.buckets.map(fn(b) { b.errors }).fold(init=0, fn(sum, n) { sum + n }),
+    result.buckets.map(fn(b) { b.errors }).fold(init=0L, fn(sum, n) { sum + n }),
     100,
   )
   assert_eq(result.counts.get_or_default("ERROR", 0), 100)
@@ -142,7 +142,7 @@ test "zero baseline requires the configured minimum and warmup is respected" {
 test "ring buffer returns exact previous ten lines" {
   let ring = @cli.RingBuffer::new(10)
   for i in 1..<=15 {
-    ring.push({ number: i, text: "line-\{i}", })
+    ring.push({ number: i.to_int64(), text: "line-\{i}", })
   }
   let before = ring.snapshot()
   assert_eq(before.length(), 10)

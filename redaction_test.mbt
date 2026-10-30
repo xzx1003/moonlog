@@ -49,3 +49,15 @@ test "JSON fields replace whole values recursively and keep invalid input visibl
   )
   assert_eq(r.metadata(1).stringify().contains("secret"), false)
 }
+
+///|
+test "field-only redaction leaves message copies visible; explicit literal rules cover them" {
+  let line = "{\"token\":\"abc123\",\"message\":\"authentication failed: abc123\"}"
+  let field_only = @cli.Redactor::none().json_line(line, ["token"])
+  assert_true(field_only.contains("authentication failed: abc123"))
+  assert_true(field_only.contains("[REDACTED]"))
+  let explicit = @cli.Redactor::new([
+    { needle: "abc123", replacement: "[HIDDEN]", },
+  ])
+  assert_eq(explicit.json_line(line, ["token"]).contains("abc123"), false)
+}

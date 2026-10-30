@@ -3,8 +3,8 @@
 // This keeps memory bounded independently of the number of spikes.
 pub struct SpikeSignatureCollector {
   analysis : Analysis
-  counts : Array[Map[String, Int32]]
-  omitted : Array[Int32]
+  counts : Array[Map[String, Int64]]
+  omitted : Array[Int64]
   mut retained : Int32
 }
 
@@ -81,6 +81,6 @@ pub fn SpikeSignatureCollector::signatures(
 pub fn SpikeSignatureCollector::omitted(
   self : SpikeSignatureCollector,
   index : Int32,
-) -> Int32 {
+) -> Int64 {
   self.omitted[index]
 }

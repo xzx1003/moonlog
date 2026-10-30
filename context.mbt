@@ -1,6 +1,6 @@
 ///|
 pub(all) struct SourceLine {
-  number : Int32
+  number : Int64
   text : String
 } derive(Eq, Debug)
 
@@ -52,8 +52,8 @@ pub fn RingBuffer::snapshot(self : RingBuffer) -> Array[SourceLine] {
 ///|
 pub(all) struct ContextWindow {
   lines : Array[SourceLine]
-  targets : Array[Int32]
-  mut end_line : Int32
+  targets : Array[Int64]
+  mut end_line : Int64
 }
 
 ///|
@@ -62,9 +62,9 @@ pub struct ContextCollector {
   radius : Int32
   max_samples : Int32
   windows : Array[ContextWindow]
-  mut seen : Int32
+  mut seen : Int64
   mut sampled : Int32
-  mut omitted : Int32
+  mut omitted : Int64
 }
 
 ///|
@@ -97,7 +97,7 @@ pub fn ContextCollector::feed(
       self.omitted += 1
     } else {
       self.sampled += 1
-      let start = self.seen - self.radius
+      let start = self.seen - self.radius.to_int64()
       match previous {
         Some(window) if start <= window.end_line + 1 => {
           let last = window.lines.last().unwrap().number
@@ -110,7 +110,7 @@ pub fn ContextCollector::feed(
             window.lines.push(line)
           }
           window.targets.push(self.seen)
-          window.end_line = self.seen + self.radius
+          window.end_line = self.seen + self.radius.to_int64()
         }
         _ => {
           let lines = self.before.snapshot()
@@ -118,7 +118,7 @@ pub fn ContextCollector::feed(
           self.windows.push({
             lines,
             targets: [self.seen],
-            end_line: self.seen + self.radius,
+            end_line: self.seen + self.radius.to_int64(),
           })
         }
       }
@@ -140,6 +140,6 @@ pub fn ContextCollector::sampled(self : ContextCollector) -> Int32 {
 }
 
 ///|
-pub fn ContextCollector::omitted(self : ContextCollector) -> Int32 {
+pub fn ContextCollector::omitted(self : ContextCollector) -> Int64 {
   self.omitted
 }

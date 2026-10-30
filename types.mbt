@@ -120,23 +120,23 @@ pub fn Config::new(
 ///|
 pub(all) struct Bucket {
   start : Int64
-  mut total : Int32
-  mut errors : Int32
+  mut total : Int64
+  mut errors : Int64
 } derive(Debug)
 
 ///|
 pub(all) struct Spike {
   start : Int64
   mut end : Int64
-  mut errors : Int32
-  mut peak_errors : Int32
+  mut errors : Int64
+  mut peak_errors : Int64
   baseline : Double
 } derive(Debug)
 
 ///|
 pub(all) struct Signature {
   text : String
-  count : Int32
+  count : Int64
 } derive(Debug)
 
 ///|

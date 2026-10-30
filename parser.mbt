@@ -109,7 +109,7 @@ pub fn parse_time(s : String) -> Int64? {
     return None
   }
   let result = days.to_int64() * 1440L + (h * 60 + minute - offset).to_int64()
-  if result < 0L {
+  if result < 0L || result > 5258964959L {
     None
   } else {
     Some(result)

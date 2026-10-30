@@ -27,5 +27,7 @@ python3 scripts/bench_cli.py --sizes 10,100,500 --runs 5 --output benchmarks/loc
 
 ## 结果
 
+保存的 macOS 结果是 SHA-256 / Int64 重构前的历史基线；新实现应重新运行，不能直接沿用这些数值描述当前性能。
+
 [本机 macOS arm64 测量](macos-arm64.md)，[原始数据](macos-arm64.json)。
 结果仅代表所记录机器和输入。没有实现等价的 JS 对照，不宣称比 JS 快；Node WASM 的补充测量可通过 `make web-bench` 运行，它的 RSS 是 Node 进程采样值，不能和这里的原生 OS 峰值直接比较。

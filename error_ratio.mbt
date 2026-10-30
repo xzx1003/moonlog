@@ -23,7 +23,7 @@ fn log_error_ratio(total : Int64, errors : Int64) -> LogErrorRatio {
 
 ///|
 pub fn Bucket::log_error_ratio(self : Bucket) -> LogErrorRatio {
-  log_error_ratio(self.total.to_int64(), self.errors.to_int64())
+  log_error_ratio(self.total, self.errors)
 }
 
 ///|
@@ -54,8 +54,8 @@ pub fn Analysis::log_error_ratio(
     if end is Some(end) && b.start >= end {
       break
     }
-    total += b.total.to_int64()
-    errors += b.errors.to_int64()
+    total += b.total
+    errors += b.errors
   }
   log_error_ratio(total, errors)
 }

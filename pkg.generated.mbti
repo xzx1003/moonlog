@@ -18,7 +18,7 @@ pub fn format_ratio(LogErrorRatio) -> String
 
 pub fn format_time(Int64) -> String
 
-pub fn markdown_report(Analysis, Array[FileContextWindow], Int32, Int32, SpikeSignatureCollector, ContextMode, Array[String], sampling? : SamplingMode, scans? : Int32, selected_signature? : String?, signature_comparisons? : Array[SignatureComparison], redactor? : Redactor, redact_fields? : Array[String]) -> String
+pub fn markdown_report(Analysis, Array[FileContextWindow], Int32, Int64, SpikeSignatureCollector, ContextMode, Array[String], sampling? : SamplingMode, scans? : Int32, selected_signature? : String?, signature_comparisons? : Array[SignatureComparison], redactor? : Redactor, redact_fields? : Array[String]) -> String
 
 pub fn parse_level(String) -> Level
 
@@ -33,15 +33,15 @@ pub(all) struct Analysis {
   json_fields : JsonFields
   config : Config
   filter : Filter
-  total : Int32
-  matched : Int32
-  untimed : Int32
-  counts : Map[String, Int32]
+  total : Int64
+  matched : Int64
+  untimed : Int64
+  counts : Map[String, Int64]
   observation_buckets : Array[Bucket]
   buckets : Array[Bucket]
   spikes : Array[Spike]
   signatures : Array[Signature]
-  overflow_signatures : Int32
+  overflow_signatures : Int64
 }
 pub fn Analysis::is_target(Self, String, mode? : ContextMode, signature? : String?) -> Bool
 pub fn Analysis::log_error_ratio(Self, start? : Int64?, end? : Int64?) -> LogErrorRatio
@@ -52,12 +52,12 @@ pub struct Analyzer {
   filter : Filter
   observation : Map[Int64, Bucket]
   buckets : Map[Int64, Bucket]
-  signatures : Map[String, Int32]
-  counts : Map[String, Int32]
-  mut total : Int32
-  mut matched : Int32
-  mut untimed : Int32
-  mut overflow_signatures : Int32
+  signatures : Map[String, Int64]
+  counts : Map[String, Int64]
+  mut total : Int64
+  mut matched : Int64
+  mut untimed : Int64
+  mut overflow_signatures : Int64
   mut first : Int64?
   mut last : Int64?
 }
@@ -67,8 +67,8 @@ pub fn Analyzer::new(Config, filter? : Filter, json_fields? : JsonFields) -> Sel
 
 pub(all) struct Bucket {
   start : Int64
-  mut total : Int32
-  mut errors : Int32
+  mut total : Int64
+  mut errors : Int64
 } derive(@debug.Debug)
 pub fn Bucket::log_error_ratio(Self) -> LogErrorRatio
 #deprecated
@@ -93,13 +93,13 @@ pub struct ContextCollector {
   radius : Int32
   max_samples : Int32
   windows : Array[ContextWindow]
-  mut seen : Int32
+  mut seen : Int64
   mut sampled : Int32
-  mut omitted : Int32
+  mut omitted : Int64
 }
 pub fn ContextCollector::feed(Self, String, Bool) -> Unit
 pub fn ContextCollector::new(Config) -> Self
-pub fn ContextCollector::omitted(Self) -> Int32
+pub fn ContextCollector::omitted(Self) -> Int64
 pub fn ContextCollector::sampled(Self) -> Int32
 pub fn ContextCollector::windows(Self) -> Array[ContextWindow]
 
@@ -117,8 +117,8 @@ pub fn ContextMode::to_repr(Self) -> @debug.Repr
 
 pub(all) struct ContextWindow {
   lines : Array[SourceLine]
-  targets : Array[Int32]
-  mut end_line : Int32
+  targets : Array[Int64]
+  mut end_line : Int64
 }
 
 pub(all) struct FileContextWindow {
@@ -219,7 +219,7 @@ pub struct ReportResult {
   analysis : Analysis
   file_windows : Array[FileContextWindow]
   sampled : Int32
-  omitted : Int32
+  omitted : Int64
   spike_signatures : SpikeSignatureCollector
   context_mode : ContextMode
   sources : Array[String]
@@ -232,7 +232,7 @@ pub struct ReportResult {
   redact_fields : Array[String]
 }
 pub fn ReportResult::json_report(Self) -> String
-pub fn ReportResult::new(Analysis, Array[FileContextWindow], Int32, Int32, SpikeSignatureCollector, ContextMode, Array[String], sampling? : SamplingMode, scans? : Int32, sample_limit? : Int32, selected_signature? : String?, signature_comparisons? : Array[SignatureComparison], redactor? : Redactor, redact_fields? : Array[String]) -> Self
+pub fn ReportResult::new(Analysis, Array[FileContextWindow], Int32, Int64, SpikeSignatureCollector, ContextMode, Array[String], sampling? : SamplingMode, scans? : Int32, sample_limit? : Int32, selected_signature? : String?, signature_comparisons? : Array[SignatureComparison], redactor? : Redactor, redact_fields? : Array[String]) -> Self
 pub fn ReportResult::summary(Self) -> TerminalSummary
 pub fn ReportResult::to_json(Self) -> Json
 
@@ -258,9 +258,18 @@ pub struct SamplingPlan {
 pub fn SamplingPlan::new(Int64, Int32, SamplingMode) -> Self raise
 pub fn SamplingPlan::ranks(Self) -> Array[Int64]
 
+pub struct Sha256 {
+  state : Array[UInt32]
+  block : Array[Byte]
+  mut length : UInt64
+}
+pub fn Sha256::feed_byte(Self, Byte) -> Unit
+pub fn Sha256::hex(Self) -> String
+pub fn Sha256::new() -> Self
+
 pub(all) struct Signature {
   text : String
-  count : Int32
+  count : Int64
 } derive(@debug.Debug)
 #deprecated
 pub fn Signature::to_repr(Self) -> @debug.Repr
@@ -291,7 +300,7 @@ pub fn SignatureComparisonCollector::feed(Self, String) -> Unit
 pub fn SignatureComparisonCollector::new(Analysis, String) -> Self
 
 pub(all) struct SourceLine {
-  number : Int32
+  number : Int64
   text : String
 } derive(Eq, @debug.Debug)
 #deprecated
@@ -304,8 +313,8 @@ pub fn SourceLine::to_repr(Self) -> @debug.Repr
 pub(all) struct Spike {
   start : Int64
   mut end : Int64
-  mut errors : Int32
-  mut peak_errors : Int32
+  mut errors : Int64
+  mut peak_errors : Int64
   baseline : Double
 } derive(@debug.Debug)
 #deprecated
@@ -313,23 +322,23 @@ pub fn Spike::to_repr(Self) -> @debug.Repr
 
 pub struct SpikeSignatureCollector {
   analysis : Analysis
-  counts : Array[Map[String, Int32]]
-  omitted : Array[Int32]
+  counts : Array[Map[String, Int64]]
+  omitted : Array[Int64]
   mut retained : Int32
 }
 pub fn SpikeSignatureCollector::feed(Self, String) -> Bool
 pub fn SpikeSignatureCollector::new(Analysis) -> Self
-pub fn SpikeSignatureCollector::omitted(Self, Int32) -> Int32
+pub fn SpikeSignatureCollector::omitted(Self, Int32) -> Int64
 pub fn SpikeSignatureCollector::signatures(Self, Int32) -> Array[Signature]
 
 pub(all) struct SpikeSummary {
   log_error_ratio : LogErrorRatio
   start : String
   end_exclusive : String
-  errors : Int32
+  errors : Int64
   top_signatures : Array[Signature]
   retained_signature_count : Int32
-  omitted_signature_occurrences : Int32
+  omitted_signature_occurrences : Int64
 }
 
 pub(all) struct TerminalSummary {
@@ -340,14 +349,14 @@ pub(all) struct TerminalSummary {
   scans : Int32
   sample_limit : Int32
   json_fields : JsonFields
-  total : Int32
-  matched : Int32
-  untimed : Int32
-  errors : Int32
+  total : Int64
+  matched : Int64
+  untimed : Int64
+  errors : Int64
   context_mode : ContextMode
   sampled_targets : Int32
-  omitted_targets : Int32
-  omitted_global_signature_occurrences : Int32
+  omitted_targets : Int64
+  omitted_global_signature_occurrences : Int64
   spikes : Array[SpikeSummary]
   selected_signature : String?
   signature_comparisons : Array[SignatureComparison]

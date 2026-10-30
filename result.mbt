@@ -7,7 +7,7 @@ pub struct ReportResult {
   analysis : Analysis
   file_windows : Array[FileContextWindow]
   sampled : Int32
-  omitted : Int32
+  omitted : Int64
   spike_signatures : SpikeSignatureCollector
   context_mode : ContextMode
   sources : Array[String]
@@ -25,7 +25,7 @@ pub fn ReportResult::new(
   analysis : Analysis,
   file_windows : Array[FileContextWindow],
   sampled : Int32,
-  omitted : Int32,
+  omitted : Int64,
   spike_signatures : SpikeSignatureCollector,
   context_mode : ContextMode,
   sources : Array[String],
@@ -60,10 +60,10 @@ pub(all) struct SpikeSummary {
   log_error_ratio : LogErrorRatio
   start : String
   end_exclusive : String
-  errors : Int32
+  errors : Int64
   top_signatures : Array[Signature]
   retained_signature_count : Int32
-  omitted_signature_occurrences : Int32
+  omitted_signature_occurrences : Int64
 }
 
 ///|
@@ -75,14 +75,14 @@ pub(all) struct TerminalSummary {
   scans : Int32
   sample_limit : Int32
   json_fields : JsonFields
-  total : Int32
-  matched : Int32
-  untimed : Int32
-  errors : Int32
+  total : Int64
+  matched : Int64
+  untimed : Int64
+  errors : Int64
   context_mode : ContextMode
   sampled_targets : Int32
-  omitted_targets : Int32
-  omitted_global_signature_occurrences : Int32
+  omitted_targets : Int64
+  omitted_global_signature_occurrences : Int64
   spikes : Array[SpikeSummary]
   selected_signature : String?
   signature_comparisons : Array[SignatureComparison]
@@ -159,7 +159,7 @@ fn result_signatures(
     signatures.map(s => {
       Json::object({
         "text": Json(redactor.apply(s.text)),
-        "count": Json(s.count),
+        "count": Json(s.count.to_double()),
       })
     }),
   )
@@ -174,7 +174,7 @@ pub fn ReportResult::to_json(self : ReportResult) -> Json {
   let f = a.filter
   let counts : Map[String, Json] = Map([])
   for level in ["DEBUG", "INFO", "WARN", "ERROR", "FATAL", "OTHER"] {
-    counts[level] = Json(a.counts.get_or_default(level, 0))
+    counts[level] = Json(a.counts.get_or_default(level, 0L).to_double())
   }
   let spikes = Array::makei(a.spikes.length(), fn(i) {
     let s = a.spikes[i]
@@ -184,24 +184,26 @@ pub fn ReportResult::to_json(self : ReportResult) -> Json {
       .to_json(),
       "start": Json(format_time(s.start)),
       "end_exclusive": Json(format_time(s.end)),
-      "errors": Json(s.errors),
-      "peak_errors": Json(s.peak_errors),
+      "errors": Json(s.errors.to_double()),
+      "peak_errors": Json(s.peak_errors.to_double()),
       "baseline": Json(s.baseline),
       "signatures": result_signatures(
         self.spike_signatures.signatures(i),
         self.redactor,
       ),
-      "omitted_signature_occurrences": Json(self.spike_signatures.omitted(i)),
+      "omitted_signature_occurrences": Json(
+        self.spike_signatures.omitted(i).to_double(),
+      ),
     })
   })
   let windows = self.file_windows.map(fw => {
     Json::object({
       "source": Json(self.redactor.apply(fw.source)),
-      "targets": Json(fw.window.targets),
+      "targets": Json::array(fw.window.targets.map(n => Json(n.to_double()))),
       "lines": Json::array(
         fw.window.lines.map(line => {
           Json::object({
-            "number": Json(line.number),
+            "number": Json(line.number.to_double()),
             "text": Json(
               redact_raw_line(self.redactor, self.redact_fields, line.text),
             ),
@@ -256,17 +258,19 @@ pub fn ReportResult::to_json(self : ReportResult) -> Json {
     ),
     "summary": Json::object({
       "log_error_ratio": a.log_error_ratio().to_json(),
-      "total": Json(a.total),
-      "matched": Json(a.matched),
-      "untimed": Json(a.untimed),
+      "total": Json(a.total.to_double()),
+      "matched": Json(a.matched.to_double()),
+      "untimed": Json(a.untimed.to_double()),
       "errors": Json(
-        a.counts.get_or_default("ERROR", 0) +
-        a.counts.get_or_default("FATAL", 0),
+        (a.counts.get_or_default("ERROR", 0L) +
+        a.counts.get_or_default("FATAL", 0L)).to_double(),
       ),
       "spike_count": Json(a.spikes.length()),
       "sampled_targets": Json(self.sampled),
-      "omitted_targets": Json(self.omitted),
-      "omitted_global_signature_occurrences": Json(a.overflow_signatures),
+      "omitted_targets": Json(self.omitted.to_double()),
+      "omitted_global_signature_occurrences": Json(
+        a.overflow_signatures.to_double(),
+      ),
     }),
     "level_counts": Json::object(counts),
     "buckets": Json::array(
@@ -276,8 +280,8 @@ pub fn ReportResult::to_json(self : ReportResult) -> Json {
           "end_exclusive": Json(
             format_time(b.start + c.bucket_minutes.to_int64()),
           ),
-          "total": Json(b.total),
-          "errors": Json(b.errors),
+          "total": Json(b.total.to_double()),
+          "errors": Json(b.errors.to_double()),
         })
       }),
     ),

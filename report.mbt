@@ -114,7 +114,7 @@ pub fn markdown_report(
   analysis : Analysis,
   file_windows : Array[FileContextWindow],
   sampled : Int32,
-  omitted : Int32,
+  omitted : Int64,
   spike_signatures : SpikeSignatureCollector,
   context_mode : ContextMode,
   sources : Array[String],

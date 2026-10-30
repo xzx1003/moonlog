@@ -70,40 +70,35 @@ fn timestamp(value : String, flag : String) -> Int64 raise {
 }
 
 ///|
-fn update_digest(digest : UInt64, raw : String) -> UInt64 {
-  (digest * 1099511628211UL) ^ raw.hash().reinterpret_as_uint().to_uint64()
-}
-
-///|
-// A per-file stable identity captured during a scan: line count and rolling
+// A per-file stable identity captured during a scan: line count and raw-byte SHA-256
 // digest. Each file must match across every pass, not just the aggregate total.
 struct FileSnapshot {
-  lines : Int32
-  digest : UInt64
+  lines : Int64
+  digest : String
 }
 
 ///|
 // Read one file and apply consume to every physical line. Returns the file's
-// line count and rolling digest so the caller can verify it did not change.
+// line count and raw-byte SHA-256 digest so the caller can verify it did not change.
 fn scan_file(
   path : String,
   max_line_bytes : Int32,
   consume : (String) -> Unit raise,
   begin~ : () -> Unit raise = fn() { () },
 ) -> FileSnapshot raise {
-  let mut digest = 14695981039346656037UL
-  let mut lines = 0
+  let digest = @engine.Sha256::new()
+  let mut lines = 0L
   begin()
   @io.each_line(
     path,
     raw => {
-      digest = update_digest(digest, raw)
       lines += 1
       consume(raw)
     },
     max_line_bytes~,
+    observe=fn(byte) { digest.feed_byte(byte) },
   )
-  { lines, digest, }
+  { lines, digest: digest.hex(), }
 }
 
 ///|
@@ -338,7 +333,7 @@ fn run(prepared : PreparedArgs) -> Unit raise {
   // Multi-file and distributed sampling use a third pass to extract context.
   let file_windows : Array[@engine.FileContextWindow] = []
   let mut sampled : Int32 = 0
-  let mut omitted : Int32 = 0
+  let mut omitted : Int64 = 0L
   if !three_pass {
     // Two-pass single-file first sampling.
     let contexts = first_contexts
@@ -371,7 +366,7 @@ fn run(prepared : PreparedArgs) -> Unit raise {
     })
     verify_snapshots(sources, snapshots, pass3)
     sampled = collector.sampled()
-    omitted = collector.omitted().to_int()
+    omitted = collector.omitted()
     for file_window in collector.finish() {
       file_windows.push(file_window)
     }

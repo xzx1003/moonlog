@@ -82,7 +82,7 @@ const { instance } = await WebAssembly.instantiate(bytes, {}, {
 | `moonlog_result_json` | `() -> string` | 仅在 phase 3 成功；返回完整 JSON 报告，失败返回空字符串。 |
 | `moonlog_last_error` | `() -> string` | 最近一次错误信息；下一次 `moonlog_start` 会清空。 |
 
-一次 WASM 实例只保留一个会话。再次调用 `moonlog_start` 会丢弃旧会话。Session 在第二遍结束时校验行数和滚动摘要；文件在第一遍后发生变化会报错而不是产生不一致报告。
+一次 WASM 实例只保留一个会话。再次调用 `moonlog_start` 会丢弃旧会话。Session 在第二遍结束时校验行数和原始字节 SHA-256；文件在第一遍后发生变化会报错而不是产生不一致报告。
 
 ### 分块与 Base64
 

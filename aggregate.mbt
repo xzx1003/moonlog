@@ -5,12 +5,12 @@ pub struct Analyzer {
   filter : Filter
   observation : Map[Int64, Bucket]
   buckets : Map[Int64, Bucket]
-  signatures : Map[String, Int32]
-  counts : Map[String, Int32]
-  mut total : Int32
-  mut matched : Int32
-  mut untimed : Int32
-  mut overflow_signatures : Int32
+  signatures : Map[String, Int64]
+  counts : Map[String, Int64]
+  mut total : Int64
+  mut matched : Int64
+  mut untimed : Int64
+  mut overflow_signatures : Int64
   mut first : Int64?
   mut last : Int64?
 }
@@ -40,6 +40,9 @@ pub fn Analyzer::new(
 
 ///|
 pub fn Analyzer::feed(self : Analyzer, raw : String) -> Unit raise {
+  guard self.total < 9000000000000L else {
+    fail("input exceeds supported record limit (9000000000000)")
+  }
   self.total += 1
   let record = parse_line(raw, fields=self.json_fields)
   // The observation interval comes from time-valid input, not just matching
@@ -108,15 +111,15 @@ pub(all) struct Analysis {
   json_fields : JsonFields
   config : Config
   filter : Filter
-  total : Int32
-  matched : Int32
-  untimed : Int32
-  counts : Map[String, Int32]
+  total : Int64
+  matched : Int64
+  untimed : Int64
+  counts : Map[String, Int64]
   observation_buckets : Array[Bucket]
   buckets : Array[Bucket]
   spikes : Array[Spike]
   signatures : Array[Signature]
-  overflow_signatures : Int32
+  overflow_signatures : Int64
 }
 
 ///|
@@ -168,11 +171,10 @@ pub fn detect_spikes(buckets : Array[Bucket], config : Config) -> Array[Spike] {
   for i in 0..<buckets.length() {
     let bucket = buckets[i]
     if i >= n {
-      let high = bucket.errors >= config.min_errors &&
+      let high = bucket.errors >= config.min_errors.to_int64() &&
         (
           sum == 0L ||
-          bucket.errors.to_int64() * n.to_int64() >
-          config.multiplier.to_int64() * sum
+          bucket.errors * n.to_int64() > config.multiplier.to_int64() * sum
         )
       if high {
         let end = bucket.start + config.bucket_minutes.to_int64()
@@ -194,9 +196,9 @@ pub fn detect_spikes(buckets : Array[Bucket], config : Config) -> Array[Spike] {
             })
         }
       }
-      sum -= buckets[i - n].errors.to_int64()
+      sum -= buckets[i - n].errors
     }
-    sum += bucket.errors.to_int64()
+    sum += bucket.errors
   }
   spikes
 }

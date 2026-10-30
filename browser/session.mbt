@@ -10,10 +10,10 @@ pub struct Session {
   mut analysis : @engine.Analysis?
   mut signatures : @engine.SpikeSignatureCollector?
   mut phase : Int32
-  mut lines : Int32
-  mut first_lines : Int32
-  mut digest : UInt64
-  mut first_digest : UInt64
+  mut lines : Int64
+  mut first_lines : Int64
+  mut digest : @engine.Sha256
+  mut first_digest : String
   mut bytes : Int64
 }
 
@@ -35,8 +35,8 @@ pub fn Session::new(
     phase: 1,
     lines: 0,
     first_lines: 0,
-    digest: 14695981039346656037UL,
-    first_digest: 0UL,
+    digest: @engine.Sha256::new(),
+    first_digest: "",
     bytes: 0L,
   }
 }
@@ -77,7 +77,7 @@ pub fn Session::feed(self : Session, chunk : Bytes) -> Unit raise {
   }
   self.bytes += chunk.length().to_int64()
   for byte in chunk {
-    self.digest = (self.digest ^ byte.to_uint64()) * 1099511628211UL
+    self.digest.feed_byte(byte)
     if byte == 10 {
       self.emit()
     } else {
@@ -107,13 +107,14 @@ pub fn Session::end_pass(self : Session) -> Int32 raise {
     self.analysis = Some(analysis)
     self.signatures = Some(@engine.SpikeSignatureCollector::new(analysis))
     self.first_lines = self.lines
-    self.first_digest = self.digest
+    self.first_digest = self.digest.hex()
     self.lines = 0
-    self.digest = 14695981039346656037UL
+    self.digest = @engine.Sha256::new()
     self.bytes = 0L
     self.phase = 2
   } else {
-    guard self.lines == self.first_lines && self.digest == self.first_digest else {
+    guard self.lines == self.first_lines &&
+      self.digest.hex() == self.first_digest else {
       fail("input changed between passes")
     }
     self.phase = 3

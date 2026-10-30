@@ -103,6 +103,7 @@ pub fn each_line(
   path : String,
   consume : (String) -> Unit raise,
   max_line_bytes~ : Int32 = 65536,
+  observe~ : (Byte) -> Unit = fn(_) { () },
 ) -> Unit raise {
   guard max_line_bytes > 0 && max_line_bytes <= 1048576 else {
     fail("max line bytes must be 1..1048576")
@@ -115,7 +116,7 @@ pub fn each_line(
   defer ignore(close(file))
   let bytes = Bytes::make(65536, 0)
   let pending = @buffer.Buffer()
-  let mut line = 1
+  let mut line = 1L
   fn emit() -> Unit raise {
     let data = pending.to_bytes()
     let end = if data.length() > 0 && data[data.length() - 1] == 13 {
@@ -140,6 +141,7 @@ pub fn each_line(
     }
     let mut start = 0
     for i in 0..<size {
+      observe(bytes[i])
       if bytes[i] == 10 {
         if pending.length() + i - start > max_line_bytes {
           fail("line \{line} exceeds --max-line-bytes (\{max_line_bytes})")

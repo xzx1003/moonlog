@@ -74,3 +74,19 @@ test "wasm session cancel prevents further input and report" {
   }
   assert_true(report)
 }
+
+///|
+test "byte digest rejects identical decoded lines with changed line endings" {
+  let session = @browser.Session::new("input.log", @engine.Config::new())
+  session.feed(bytes("2026-10-28 08:00:00 [INFO] ok\r\n"))
+  assert_eq(session.end_pass(), 2)
+  session.feed(bytes("2026-10-28 08:00:00 [INFO] ok\n"))
+  let rejected = try {
+    ignore(session.end_pass())
+    false
+  } catch {
+    _ => true
+  }
+  assert_true(rejected)
+  assert_eq(session.phase(), -1)
+}
