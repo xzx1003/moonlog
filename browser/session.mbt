@@ -76,8 +76,8 @@ pub fn Session::feed(self : Session, chunk : Bytes) -> Unit raise {
     self.phase = -1
   }
   self.bytes += chunk.length().to_int64()
+  self.digest.feed_bytes(chunk[:])
   for byte in chunk {
-    self.digest.feed_byte(byte)
     if byte == 10 {
       self.emit()
     } else {

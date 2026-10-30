@@ -99,11 +99,14 @@ pub fn stat_identity(path : String) -> String raise {
 ///|
 // 64 KiB chunks; UTF-8 is decoded only after a full bounded line is available.
 // Fail explicitly instead of allocating without bound on a pathological line.
+// observe_chunk sees a whole chunk before any line from it is consumed; observe,
+// when given, receives the same raw bytes one by one. Neither may retain a view.
 pub fn each_line(
   path : String,
   consume : (String) -> Unit raise,
   max_line_bytes~ : Int32 = 65536,
-  observe~ : (Byte) -> Unit = fn(_) { () },
+  observe~ : ((Byte) -> Unit)? = None,
+  observe_chunk~ : (BytesView) -> Unit = fn(_) { () },
 ) -> Unit raise {
   guard max_line_bytes > 0 && max_line_bytes <= 1048576 else {
     fail("max line bytes must be 1..1048576")
@@ -139,9 +142,15 @@ pub fn each_line(
     if size == 0 {
       break
     }
+    // Borrowed view is valid only during this synchronous callback.
+    observe_chunk(bytes[:size])
+    if observe is Some(callback) {
+      for i in 0..<size {
+        callback(bytes[i])
+      }
+    }
     let mut start = 0
     for i in 0..<size {
-      observe(bytes[i])
       if bytes[i] == 10 {
         if pending.length() + i - start > max_line_bytes {
           fail("line \{line} exceeds --max-line-bytes (\{max_line_bytes})")

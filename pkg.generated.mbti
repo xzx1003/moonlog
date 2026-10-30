@@ -261,9 +261,11 @@ pub fn SamplingPlan::ranks(Self) -> Array[Int64]
 pub struct Sha256 {
   state : Array[UInt32]
   block : Array[Byte]
+  schedule : Array[UInt32]
   mut length : UInt64
 }
 pub fn Sha256::feed_byte(Self, Byte) -> Unit
+pub fn Sha256::feed_bytes(Self, BytesView) -> Unit
 pub fn Sha256::hex(Self) -> String
 pub fn Sha256::new() -> Self
 

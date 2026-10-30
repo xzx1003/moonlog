@@ -96,7 +96,7 @@ fn scan_file(
       consume(raw)
     },
     max_line_bytes~,
-    observe=fn(byte) { digest.feed_byte(byte) },
+    observe_chunk=fn(bytes) { digest.feed_bytes(bytes) },
   )
   { lines, digest: digest.hex(), }
 }

@@ -27,3 +27,7 @@ python3 benchmarks/compare/run.py --go /tmp/moonlog-go-reference --sizes 10,100 
 [结果表](results.md) · [原始结果与环境](results.json)
 
 当前 M5 机器上 Go 吞吐量更高；MoonBit 的进程峰值 RSS 更低。结论只适用于上述受限工作负载。本机 Go 来自官方 `go.dev/dl/go1.25.3.darwin-arm64.tar.gz`，归档 SHA-256 为 `7c083e3d2c00debfeb2f77d9a4c00a1aac97113b89b9ccc42a90487af3437382`。
+
+吞吐量同时提供 MiB/s（2^20 字节）、MB/s（10^6 字节）与 lines/s（逻辑输入行数 / 总耗时，两遍扫描不重复计行）。已保存结果中的新增指标由原始测量推导，不是重新计时。
+
+测量所用二进制哈希记录在 results.json；这组数据测于 SHA-256 调度工作区复用和按块摘要改动之前，之后未重测，旧计时和二进制哈希保持不变。`benchmarks/profile/` 的配对消融显示调度复用落在测量噪声内，按块摘要在本机 100/500 MiB 受限契约中把 `full` 模式中位耗时降低约 7.5%–10.2%（`read` 因移除空的逐字节回调降低约 42%–49%，`digest` 约 15%–18%）；这些测量非空闲，未重跑本对照，不能据此更新本表或断言全面超过 Go。`main.mbt` 的 read/digest/parse/aggregate 性能分解模式是消融对照，不是完整 CLI 数据，不能与本表混用。

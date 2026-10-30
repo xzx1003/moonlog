@@ -28,15 +28,15 @@ with tempfile.TemporaryDirectory(prefix='moonlog-compare-') as d:
      # Alternate process order to reduce systematic cache/order bias.
      order=list(binaries) if iteration%2==0 else list(reversed(binaries))
      for name in order:
-      out=d/(name+'.json');measurement=baseline.run([str(binaries[name]),str(source)],out,d/'stderr');reports[name]=json.loads(out.read_text());measurement['mib_per_second']=expected['bytes']/1048576/measurement['seconds']
+      out=d/(name+'.json');measurement=baseline.run([str(binaries[name]),str(source)],out,d/'stderr');reports[name]=json.loads(out.read_text());measurement['mib_per_second']=expected['bytes']/1048576/measurement['seconds'];measurement['mb_per_second']=expected['bytes']/1000000/measurement['seconds'];measurement['lines_per_second']=expected['total']/measurement['seconds']
       if iteration:case['samples'][name].append(measurement)
      if reports['moonbit']!=reports['go']:raise AssertionError(case['name']+' output mismatch')
      assert reports['moonbit']['total']==expected['total']
      assert reports['moonbit']['levels']['ERROR']==expected['errors']
      assert reports['moonbit']['sha256']==expected['sha256']
-    case['summary']={name:{'median_seconds':statistics.median(x['seconds'] for x in samples),'median_mib_per_second':statistics.median(x['mib_per_second'] for x in samples),'max_rss_mib':max(x['peak_rss_mib'] for x in samples),'median_cpu_seconds':statistics.median(x['user_seconds']+x['system_seconds'] for x in samples)} for name,samples in case['samples'].items()};result['cases'].append(case);print(case['name'],case['summary'],flush=True)
+    case['summary']={name:{'median_mb_per_second':statistics.median(x['mb_per_second'] for x in samples),'median_lines_per_second':statistics.median(x['lines_per_second'] for x in samples),'median_seconds':statistics.median(x['seconds'] for x in samples),'median_mib_per_second':statistics.median(x['mib_per_second'] for x in samples),'max_rss_mib':max(x['peak_rss_mib'] for x in samples),'median_cpu_seconds':statistics.median(x['user_seconds']+x['system_seconds'] for x in samples)} for name,samples in case['samples'].items()};result['cases'].append(case);print(case['name'],case['summary'],flush=True)
 output=Path(args.output);output.parent.mkdir(parents=True,exist_ok=True);output.write_text(json.dumps(result,indent=2)+'\n')
-lines=['# MoonBit / Go common-contract benchmark','','| Case | Language | MiB/s median | Wall s median | CPU s median | Peak RSS MiB max |','|---|---|---:|---:|---:|---:|']
+lines=['# MoonBit / Go common-contract benchmark','','| Case | Language | MiB/s median | MB/s median | lines/s median | Wall s median | CPU s median | Peak RSS MiB max |','|---|---|---:|---:|---:|---:|---:|---:|']
 for c in result['cases']:
- for name,s in c['summary'].items():lines.append(f"| {c['name']} | {name} | {s['median_mib_per_second']:.1f} | {s['median_seconds']:.3f} | {s['median_cpu_seconds']:.3f} | {s['max_rss_mib']:.1f} |")
+ for name,s in c['summary'].items():lines.append(f"| {c['name']} | {name} | {s['median_mib_per_second']:.1f} | {s['median_mb_per_second']:.1f} | {s['median_lines_per_second']:.0f} | {s['median_seconds']:.3f} | {s['median_cpu_seconds']:.3f} | {s['max_rss_mib']:.1f} |")
 lines+=['','Each result passed full JSON equality and input SHA-256 checks. See README.md for supported input scope and interpretation.'];output.with_suffix('.md').write_text('\n'.join(lines)+'\n')

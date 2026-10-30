@@ -2,7 +2,7 @@
 package "moonlog/cli/nativeio"
 
 // Values
-pub fn each_line(String, (String) -> Unit raise, max_line_bytes? : Int32, observe? : (Byte) -> Unit) -> Unit raise
+pub fn each_line(String, (String) -> Unit raise, max_line_bytes? : Int32, observe? : ((Byte) -> Unit)?, observe_chunk? : (BytesView) -> Unit) -> Unit raise
 
 pub fn ensure_distinct_output(String, Array[String]) -> Unit raise
 
