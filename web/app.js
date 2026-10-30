@@ -112,6 +112,7 @@ document.getElementById('load-example').addEventListener('click', async (event) 
     if (activeRun) return;
     els.file.value = '';
     selectFile(new File([await response.blob()], 'sample.log', { type: 'text/plain' }));
+    els.maxSamples.value = '100';
     currentStep = 1;
     renderStep(true);
   } catch (error) {
@@ -219,7 +220,7 @@ function startAnalysis() {
     return;
   }
 
-  const run = { worker, settled: false };
+  const run = { worker, settled: false, startedAt: performance.now(), completionTimer: null };
   activeRun = run;
   setRunning(true);
   startProgress(file.size);
@@ -262,7 +263,12 @@ function handleWorkerMessage(run, message) {
     return;
   }
   if (message.type === 'result') {
-    finishRun(run, message);
+    // Hold a fast completion briefly so the real progress has time to paint.
+    run.worker.terminate();
+    els.progressPhase.textContent = '分析完成，正在显示结果…';
+    run.completionTimer = setTimeout(() => {
+      if (activeRun === run && !run.settled) finishRun(run, message);
+    }, Math.max(0, 1100 - (performance.now() - run.startedAt)));
     return;
   }
   if (message.type === 'error') {
@@ -275,6 +281,7 @@ function handleWorkerMessage(run, message) {
 }
 
 function finishRun(run, message) {
+  clearTimeout(run.completionTimer);
   run.settled = true;
   run.worker.terminate();
   if (activeRun === run) {

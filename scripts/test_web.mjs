@@ -412,15 +412,22 @@ await test('repeated analysis returns byte-identical JSON', async () => {
   assert.equal(first.chunks, second.chunks);
 });
 
-await test('bundled demo exposes two incidents with default browser parameters', async () => {
+await test('bundled demo covers three incidents, backgrounds and raw stack context', async () => {
   const bytes = await readFile(resolve(root, 'web/sample.log'));
-  const { report } = await run(await newBridge(), bytes, 'sample.log');
-  assert.equal(report.summary.total, 200);
-  assert.equal(report.summary.errors, 45);
-  assert.equal(report.summary.spike_count, 2);
-  assert.equal(report.spikes[0].errors, 25);
-  assert.equal(report.spikes[1].errors, 20);
-  assert.ok(report.context_windows.length > 0);
+  const { report } = await run(await newBridge(), bytes, 'sample.log', { maxSamples: 100 });
+  assert.equal(report.summary.total, 335);
+  assert.equal(report.summary.errors, 53);
+  assert.equal(report.summary.untimed, 2);
+  assert.equal(report.summary.spike_count, 3);
+  assert.deepEqual(report.spikes.map(s => s.errors), [16, 15, 15]);
+  assert.equal(report.summary.omitted_targets, 0);
+  for (const level of ['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL', 'OTHER']) {
+    assert.ok(Number(report.level_counts[level]) > 0, level);
+  }
+  const contexts = JSON.stringify(report.context_windows);
+  for (const text of ['database query timeout', 'TLS certificate expired', 'worker out of memory', 'processOrder']) {
+    assert.ok(contexts.includes(text), text);
+  }
 });
 
 await test('page ids are unique and every getElementById target exists', async () => {

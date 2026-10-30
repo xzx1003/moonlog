@@ -1280,3 +1280,7 @@ progress::-moz-progress-bar { background: #bd3d1c; }
 @keyframes step-in { from { opacity: 0; transform: translateX(5px); } to { opacity: 1; transform: translateX(0); } }
 @media(max-width:540px) { .step-panel { padding: 20px; } .detect-grid, .filter-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .progress-meta { flex-wrap: wrap; } }
 @media(prefers-reduced-motion:reduce) { .step-panel { animation: none; } }
+
+progress::-webkit-progress-value { transition: width 280ms ease; }
+progress::-moz-progress-bar { transition: width 280ms ease; }
+@media(prefers-reduced-motion:reduce) { progress::-webkit-progress-value, progress::-moz-progress-bar { transition: none; } }

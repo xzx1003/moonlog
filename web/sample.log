@@ -1,200 +1,335 @@
-2026-10-28 08:00:00 [INFO] request completed id=0 status=200
-2026-10-28 08:00:00 [INFO] synthetic demo: database timeout and upstream connection incidents; not production logs
-2026-10-28 08:01:00 [INFO] request completed id=1 status=200
-2026-10-28 08:02:00 [INFO] request completed id=2 status=200
-2026-10-28 08:03:00 [INFO] request completed id=3 status=200
-2026-10-28 08:04:00 [INFO] request completed id=4 status=200
-2026-10-28 08:05:00 [INFO] request completed id=5 status=200
-2026-10-28 08:06:00 [INFO] request completed id=6 status=200
-2026-10-28 08:07:00 [INFO] request completed id=7 status=200
-2026-10-28 08:08:00 [INFO] request completed id=8 status=200
-2026-10-28 08:09:00 [INFO] request completed id=9 status=200
-2026-10-28 08:10:00 [INFO] request completed id=10 status=200
-2026-10-28 08:11:00 [INFO] request completed id=11 status=200
-2026-10-28 08:12:00 [INFO] request completed id=12 status=200
-2026-10-28 08:13:00 [INFO] request completed id=13 status=200
-2026-10-28 08:14:00 [INFO] request completed id=14 status=200
-2026-10-28 08:15:00 [INFO] request completed id=15 status=200
-2026-10-28 08:16:00 [INFO] request completed id=16 status=200
-2026-10-28 08:17:00 [INFO] request completed id=17 status=200
-2026-10-28 08:18:00 [INFO] request completed id=18 status=200
-2026-10-28 08:19:00 [INFO] request completed id=19 status=200
-2026-10-28 08:20:00 [INFO] request completed id=20 status=200
-2026-10-28 08:21:00 [INFO] request completed id=21 status=200
-2026-10-28 08:22:00 [INFO] request completed id=22 status=200
-2026-10-28 08:23:00 [INFO] request completed id=23 status=200
-2026-10-28 08:24:00 [INFO] request completed id=24 status=200
-2026-10-28 08:25:00 [INFO] request completed id=25 status=200
-2026-10-28 08:26:00 [INFO] request completed id=26 status=200
-2026-10-28 08:27:00 [INFO] request completed id=27 status=200
-2026-10-28 08:28:00 [INFO] request completed id=28 status=200
-2026-10-28 08:29:00 [INFO] request completed id=29 status=200
-2026-10-28 08:29:00 [WARN] database connection pool nearly exhausted
-2026-10-28 08:30:00 [INFO] request completed id=30 status=200
-2026-10-28 08:30:00 [ERROR] database timeout retry=1
-2026-10-28 08:30:00 [ERROR] database timeout retry=31
-2026-10-28 08:30:00 [ERROR] connection pool exhausted waiting=30
-2026-10-28 08:31:00 [INFO] request completed id=31 status=200
-2026-10-28 08:31:00 [ERROR] database timeout retry=2
-2026-10-28 08:31:00 [ERROR] database timeout retry=32
-2026-10-28 08:32:00 [INFO] request completed id=32 status=200
-2026-10-28 08:32:00 [ERROR] database timeout retry=3
-2026-10-28 08:32:00 [ERROR] database timeout retry=33
-2026-10-28 08:32:00 [ERROR] connection pool exhausted waiting=32
-2026-10-28 08:33:00 [INFO] request completed id=33 status=200
-2026-10-28 08:33:00 [ERROR] database timeout retry=4
-2026-10-28 08:33:00 [ERROR] database timeout retry=34
-2026-10-28 08:34:00 [INFO] request completed id=34 status=200
-2026-10-28 08:34:00 [ERROR] database timeout retry=5
-2026-10-28 08:34:00 [ERROR] database timeout retry=35
-2026-10-28 08:34:00 [ERROR] connection pool exhausted waiting=34
-2026-10-28 08:35:00 [INFO] request completed id=35 status=200
-2026-10-28 08:35:00 [ERROR] database timeout retry=6
-2026-10-28 08:35:00 [ERROR] database timeout retry=36
-2026-10-28 08:36:00 [INFO] request completed id=36 status=200
-2026-10-28 08:36:00 [ERROR] database timeout retry=7
-2026-10-28 08:36:00 [ERROR] database timeout retry=37
-2026-10-28 08:36:00 [ERROR] connection pool exhausted waiting=36
-2026-10-28 08:37:00 [INFO] request completed id=37 status=200
-2026-10-28 08:37:00 [ERROR] database timeout retry=8
-2026-10-28 08:37:00 [ERROR] database timeout retry=38
-2026-10-28 08:38:00 [INFO] request completed id=38 status=200
-2026-10-28 08:38:00 [ERROR] database timeout retry=9
-2026-10-28 08:38:00 [ERROR] database timeout retry=39
-2026-10-28 08:38:00 [ERROR] connection pool exhausted waiting=38
-2026-10-28 08:39:00 [INFO] request completed id=39 status=200
-2026-10-28 08:39:00 [ERROR] database timeout retry=10
-2026-10-28 08:39:00 [ERROR] database timeout retry=40
-2026-10-28 08:40:00 [INFO] request completed id=40 status=200
-2026-10-28 08:40:00 [INFO] database pool recovered; requests completing normally
-2026-10-28 08:41:00 [INFO] request completed id=41 status=200
-2026-10-28 08:42:00 [INFO] request completed id=42 status=200
-2026-10-28 08:43:00 [INFO] request completed id=43 status=200
-2026-10-28 08:44:00 [INFO] request completed id=44 status=200
-2026-10-28 08:45:00 [INFO] request completed id=45 status=200
-2026-10-28 08:46:00 [INFO] request completed id=46 status=200
-2026-10-28 08:47:00 [INFO] request completed id=47 status=200
-2026-10-28 08:48:00 [INFO] request completed id=48 status=200
-2026-10-28 08:49:00 [INFO] request completed id=49 status=200
-2026-10-28 08:50:00 [INFO] request completed id=50 status=200
-2026-10-28 08:51:00 [INFO] request completed id=51 status=200
-2026-10-28 08:52:00 [INFO] request completed id=52 status=200
-2026-10-28 08:53:00 [INFO] request completed id=53 status=200
-2026-10-28 08:54:00 [INFO] request completed id=54 status=200
-2026-10-28 08:55:00 [INFO] request completed id=55 status=200
-2026-10-28 08:56:00 [INFO] request completed id=56 status=200
-2026-10-28 08:57:00 [INFO] request completed id=57 status=200
-2026-10-28 08:58:00 [INFO] request completed id=58 status=200
-2026-10-28 08:59:00 [INFO] request completed id=59 status=200
-2026-10-28 09:00:00 [INFO] request completed id=60 status=200
-2026-10-28 09:01:00 [INFO] request completed id=61 status=200
-2026-10-28 09:02:00 [INFO] request completed id=62 status=200
-2026-10-28 09:03:00 [INFO] request completed id=63 status=200
-2026-10-28 09:04:00 [INFO] request completed id=64 status=200
-2026-10-28 09:05:00 [INFO] request completed id=65 status=200
-2026-10-28 09:06:00 [INFO] request completed id=66 status=200
-2026-10-28 09:07:00 [INFO] request completed id=67 status=200
-2026-10-28 09:08:00 [INFO] request completed id=68 status=200
-2026-10-28 09:09:00 [INFO] request completed id=69 status=200
-2026-10-28 09:10:00 [INFO] request completed id=70 status=200
-2026-10-28 09:11:00 [INFO] request completed id=71 status=200
-2026-10-28 09:12:00 [INFO] request completed id=72 status=200
-2026-10-28 09:13:00 [INFO] request completed id=73 status=200
-2026-10-28 09:14:00 [INFO] request completed id=74 status=200
-2026-10-28 09:15:00 [INFO] request completed id=75 status=200
-2026-10-28 09:16:00 [INFO] request completed id=76 status=200
-2026-10-28 09:17:00 [INFO] request completed id=77 status=200
-2026-10-28 09:18:00 [INFO] request completed id=78 status=200
-2026-10-28 09:19:00 [INFO] request completed id=79 status=200
-2026-10-28 09:20:00 [INFO] request completed id=80 status=200
-2026-10-28 09:21:00 [INFO] request completed id=81 status=200
-2026-10-28 09:22:00 [INFO] request completed id=82 status=200
-2026-10-28 09:23:00 [INFO] request completed id=83 status=200
-2026-10-28 09:24:00 [INFO] request completed id=84 status=200
-2026-10-28 09:25:00 [INFO] request completed id=85 status=200
-2026-10-28 09:26:00 [INFO] request completed id=86 status=200
-2026-10-28 09:27:00 [INFO] request completed id=87 status=200
-2026-10-28 09:28:00 [INFO] request completed id=88 status=200
-2026-10-28 09:29:00 [INFO] request completed id=89 status=200
-2026-10-28 09:30:00 [INFO] request completed id=90 status=200
-2026-10-28 09:31:00 [INFO] request completed id=91 status=200
-2026-10-28 09:32:00 [INFO] request completed id=92 status=200
-2026-10-28 09:33:00 [INFO] request completed id=93 status=200
-2026-10-28 09:34:00 [INFO] request completed id=94 status=200
-2026-10-28 09:35:00 [INFO] request completed id=95 status=200
-2026-10-28 09:36:00 [INFO] request completed id=96 status=200
-2026-10-28 09:37:00 [INFO] request completed id=97 status=200
-2026-10-28 09:38:00 [INFO] request completed id=98 status=200
-2026-10-28 09:39:00 [INFO] request completed id=99 status=200
-{"ts":"2026-10-28 09:39:00","level":"WARN","msg":"upstream connection failures increasing"}
-2026-10-28 09:40:00 [INFO] request completed id=100 status=200
-{"ts":"2026-10-28 09:40:00","level":"ERROR","msg":"upstream connection refused attempt=1"}
-{"ts":"2026-10-28 09:40:00","level":"FATAL","msg":"payment worker unavailable worker=100"}
-2026-10-28 09:41:00 [INFO] request completed id=101 status=200
-{"ts":"2026-10-28 09:41:00","level":"ERROR","msg":"upstream connection refused attempt=2"}
-{"ts":"2026-10-28 09:41:00","level":"FATAL","msg":"payment worker unavailable worker=101"}
-2026-10-28 09:42:00 [INFO] request completed id=102 status=200
-{"ts":"2026-10-28 09:42:00","level":"ERROR","msg":"upstream connection refused attempt=3"}
-{"ts":"2026-10-28 09:42:00","level":"FATAL","msg":"payment worker unavailable worker=102"}
-2026-10-28 09:43:00 [INFO] request completed id=103 status=200
-{"ts":"2026-10-28 09:43:00","level":"ERROR","msg":"upstream connection refused attempt=4"}
-{"ts":"2026-10-28 09:43:00","level":"FATAL","msg":"payment worker unavailable worker=103"}
-2026-10-28 09:44:00 [INFO] request completed id=104 status=200
-{"ts":"2026-10-28 09:44:00","level":"ERROR","msg":"upstream connection refused attempt=5"}
-{"ts":"2026-10-28 09:44:00","level":"FATAL","msg":"payment worker unavailable worker=104"}
-2026-10-28 09:45:00 [INFO] request completed id=105 status=200
-{"ts":"2026-10-28 09:45:00","level":"ERROR","msg":"upstream connection refused attempt=6"}
-{"ts":"2026-10-28 09:45:00","level":"FATAL","msg":"payment worker unavailable worker=105"}
-2026-10-28 09:46:00 [INFO] request completed id=106 status=200
-{"ts":"2026-10-28 09:46:00","level":"ERROR","msg":"upstream connection refused attempt=7"}
-{"ts":"2026-10-28 09:46:00","level":"FATAL","msg":"payment worker unavailable worker=106"}
-2026-10-28 09:47:00 [INFO] request completed id=107 status=200
-{"ts":"2026-10-28 09:47:00","level":"ERROR","msg":"upstream connection refused attempt=8"}
-{"ts":"2026-10-28 09:47:00","level":"FATAL","msg":"payment worker unavailable worker=107"}
-2026-10-28 09:48:00 [INFO] request completed id=108 status=200
-{"ts":"2026-10-28 09:48:00","level":"ERROR","msg":"upstream connection refused attempt=9"}
-{"ts":"2026-10-28 09:48:00","level":"FATAL","msg":"payment worker unavailable worker=108"}
-2026-10-28 09:49:00 [INFO] request completed id=109 status=200
-{"ts":"2026-10-28 09:49:00","level":"ERROR","msg":"upstream connection refused attempt=10"}
-{"ts":"2026-10-28 09:49:00","level":"FATAL","msg":"payment worker unavailable worker=109"}
-2026-10-28 09:50:00 [INFO] request completed id=110 status=200
-{"ts":"2026-10-28 09:50:00","level":"INFO","msg":"upstream connection restored; worker restarted"}
-2026-10-28 09:51:00 [INFO] request completed id=111 status=200
-2026-10-28 09:52:00 [INFO] request completed id=112 status=200
-2026-10-28 09:53:00 [INFO] request completed id=113 status=200
-2026-10-28 09:54:00 [INFO] request completed id=114 status=200
-2026-10-28 09:55:00 [INFO] request completed id=115 status=200
-2026-10-28 09:56:00 [INFO] request completed id=116 status=200
-2026-10-28 09:57:00 [INFO] request completed id=117 status=200
-2026-10-28 09:58:00 [INFO] request completed id=118 status=200
-2026-10-28 09:59:00 [INFO] request completed id=119 status=200
-2026-10-28 10:00:00 [INFO] request completed id=120 status=200
-2026-10-28 10:01:00 [INFO] request completed id=121 status=200
-2026-10-28 10:02:00 [INFO] request completed id=122 status=200
-2026-10-28 10:03:00 [INFO] request completed id=123 status=200
-2026-10-28 10:04:00 [INFO] request completed id=124 status=200
-2026-10-28 10:05:00 [INFO] request completed id=125 status=200
-2026-10-28 10:06:00 [INFO] request completed id=126 status=200
-2026-10-28 10:07:00 [INFO] request completed id=127 status=200
-2026-10-28 10:08:00 [INFO] request completed id=128 status=200
-2026-10-28 10:09:00 [INFO] request completed id=129 status=200
-2026-10-28 10:10:00 [INFO] request completed id=130 status=200
-2026-10-28 10:11:00 [INFO] request completed id=131 status=200
-2026-10-28 10:12:00 [INFO] request completed id=132 status=200
-2026-10-28 10:13:00 [INFO] request completed id=133 status=200
-2026-10-28 10:14:00 [INFO] request completed id=134 status=200
-2026-10-28 10:15:00 [INFO] request completed id=135 status=200
-2026-10-28 10:16:00 [INFO] request completed id=136 status=200
-2026-10-28 10:17:00 [INFO] request completed id=137 status=200
-2026-10-28 10:18:00 [INFO] request completed id=138 status=200
-2026-10-28 10:19:00 [INFO] request completed id=139 status=200
-2026-10-28 10:20:00 [INFO] request completed id=140 status=200
-2026-10-28 10:21:00 [INFO] request completed id=141 status=200
-2026-10-28 10:22:00 [INFO] request completed id=142 status=200
-2026-10-28 10:23:00 [INFO] request completed id=143 status=200
-2026-10-28 10:24:00 [INFO] request completed id=144 status=200
-2026-10-28 10:25:00 [INFO] request completed id=145 status=200
-2026-10-28 10:26:00 [INFO] request completed id=146 status=200
-2026-10-28 10:27:00 [INFO] request completed id=147 status=200
-2026-10-28 10:28:00 [INFO] request completed id=148 status=200
-2026-10-28 10:29:00 [INFO] request completed id=149 status=200
+2026-10-28 08:00:00 [INFO] SYNTHETIC DEMO: independent fault examples; messages do not prove causality
+2026-10-28 08:00:00 [INFO] request completed status=200 request_id=0
+2026-10-28 08:00:00 [DEBUG] cache hit key=item-0
+2026-10-28 08:00:00 [WARN] authentication rejected status=401 route=/admin (background warning)
+2026-10-28 08:01:00 [INFO] request completed status=200 request_id=1
+2026-10-28 08:02:00 [INFO] request completed status=200 request_id=2
+2026-10-28 08:03:00 [INFO] request completed status=200 request_id=3
+2026-10-28 08:04:00 [INFO] request completed status=200 request_id=4
+2026-10-28 08:05:00 [INFO] request completed status=200 request_id=5
+2026-10-28 08:06:00 [INFO] request completed status=200 request_id=6
+2026-10-28 08:07:00 [INFO] request completed status=200 request_id=7
+2026-10-28 08:08:00 [INFO] request completed status=200 request_id=8
+2026-10-28 08:09:00 [INFO] request completed status=200 request_id=9
+2026-10-28 08:10:00 [INFO] request completed status=200 request_id=10
+2026-10-28 08:10:00 [DEBUG] cache hit key=item-10
+2026-10-28 08:10:00 [ERROR] scheduled export failed: permission denied path=/exports/daily
+2026-10-28 08:11:00 [INFO] request completed status=200 request_id=11
+2026-10-28 08:12:00 [INFO] request completed status=200 request_id=12
+2026-10-28 08:13:00 [INFO] request completed status=200 request_id=13
+2026-10-28 08:14:00 [INFO] request completed status=200 request_id=14
+2026-10-28 08:15:00 [INFO] request completed status=200 request_id=15
+2026-10-28 08:15:00 [NOTICE] deployment marker version=2
+2026-10-28 08:16:00 [INFO] request completed status=200 request_id=16
+2026-10-28 08:17:00 [INFO] request completed status=200 request_id=17
+2026-10-28 08:18:00 [INFO] request completed status=200 request_id=18
+2026-10-28 08:19:00 [INFO] request completed status=200 request_id=19
+2026-10-28 08:20:00 [INFO] request completed status=200 request_id=20
+2026-10-28 08:20:00 [DEBUG] cache hit key=item-20
+2026-10-28 08:21:00 [INFO] request completed status=200 request_id=21
+2026-10-28 08:22:00 [INFO] request completed status=200 request_id=22
+2026-10-28 08:23:00 [INFO] request completed status=200 request_id=23
+2026-10-28 08:24:00 [INFO] request completed status=200 request_id=24
+2026-10-28 08:25:00 [INFO] request completed status=200 request_id=25
+2026-10-28 08:26:00 [INFO] request completed status=200 request_id=26
+2026-10-28 08:27:00 [INFO] request completed status=200 request_id=27
+2026-10-28 08:28:00 [INFO] request completed status=200 request_id=28
+2026-10-28 08:29:00 [INFO] request completed status=200 request_id=29
+2026-10-28 08:30:00 [INFO] request completed status=200 request_id=30
+2026-10-28 08:30:00 [DEBUG] cache hit key=item-30
+2026-10-28 08:30:00 [WARN] authentication rejected status=401 route=/admin (background warning)
+2026-10-28 08:31:00 [INFO] request completed status=200 request_id=31
+2026-10-28 08:32:00 [INFO] request completed status=200 request_id=32
+2026-10-28 08:33:00 [INFO] request completed status=200 request_id=33
+2026-10-28 08:34:00 [INFO] request completed status=200 request_id=34
+2026-10-28 08:35:00 [INFO] request completed status=200 request_id=35
+2026-10-28 08:36:00 [INFO] request completed status=200 request_id=36
+2026-10-28 08:37:00 [INFO] request completed status=200 request_id=37
+2026-10-28 08:38:00 [INFO] request completed status=200 request_id=38
+2026-10-28 08:39:00 [INFO] request completed status=200 request_id=39
+2026-10-28 08:39:00 [WARN] database pool usage above threshold
+2026-10-28 08:40:00 [INFO] request completed status=200 request_id=40
+2026-10-28 08:40:00 [DEBUG] cache hit key=item-40
+2026-10-28 08:40:00 [ERROR] scheduled export failed: permission denied path=/exports/daily
+2026-10-28 08:40:00 [ERROR] database query timeout duration_ms=3000 request_id=101
+2026-10-28 08:40:00 [ERROR] connection pool exhausted active=32 waiting=18
+2026-10-28 08:40:00 [ERROR] transaction deadlock retry=2
+2026-10-28 08:41:00 [INFO] request completed status=200 request_id=41
+2026-10-28 08:41:00 [ERROR] database query timeout duration_ms=3000 request_id=101
+2026-10-28 08:41:00 [ERROR] connection pool exhausted active=32 waiting=18
+2026-10-28 08:41:00 [ERROR] transaction deadlock retry=2
+2026-10-28 08:42:00 [INFO] request completed status=200 request_id=42
+2026-10-28 08:42:00 [ERROR] database query timeout duration_ms=3000 request_id=101
+2026-10-28 08:42:00 [ERROR] connection pool exhausted active=32 waiting=18
+2026-10-28 08:42:00 [ERROR] transaction deadlock retry=2
+2026-10-28 08:43:00 [INFO] request completed status=200 request_id=43
+2026-10-28 08:43:00 [ERROR] database query timeout duration_ms=3000 request_id=101
+2026-10-28 08:43:00 [ERROR] connection pool exhausted active=32 waiting=18
+2026-10-28 08:43:00 [ERROR] transaction deadlock retry=2
+2026-10-28 08:44:00 [INFO] request completed status=200 request_id=44
+2026-10-28 08:44:00 [ERROR] database query timeout duration_ms=3000 request_id=101
+2026-10-28 08:44:00 [ERROR] connection pool exhausted active=32 waiting=18
+2026-10-28 08:44:00 [ERROR] transaction deadlock retry=2
+2026-10-28 08:45:00 [INFO] request completed status=200 request_id=45
+2026-10-28 08:45:00 [INFO] database pool recovered; transaction retries succeeded
+2026-10-28 08:46:00 [INFO] request completed status=200 request_id=46
+2026-10-28 08:47:00 [INFO] request completed status=200 request_id=47
+2026-10-28 08:48:00 [INFO] request completed status=200 request_id=48
+2026-10-28 08:49:00 [INFO] request completed status=200 request_id=49
+2026-10-28 08:50:00 [INFO] request completed status=200 request_id=50
+2026-10-28 08:50:00 [DEBUG] cache hit key=item-50
+2026-10-28 08:51:00 [INFO] request completed status=200 request_id=51
+2026-10-28 08:52:00 [INFO] request completed status=200 request_id=52
+2026-10-28 08:53:00 [INFO] request completed status=200 request_id=53
+2026-10-28 08:54:00 [INFO] request completed status=200 request_id=54
+2026-10-28 08:55:00 [INFO] request completed status=200 request_id=55
+2026-10-28 08:56:00 [INFO] request completed status=200 request_id=56
+2026-10-28 08:57:00 [INFO] request completed status=200 request_id=57
+2026-10-28 08:58:00 [INFO] request completed status=200 request_id=58
+2026-10-28 08:59:00 [INFO] request completed status=200 request_id=59
+2026-10-28 09:00:00 [INFO] request completed status=200 request_id=60
+2026-10-28 09:00:00 [DEBUG] cache hit key=item-60
+2026-10-28 09:00:00 [WARN] authentication rejected status=401 route=/admin (background warning)
+2026-10-28 09:01:00 [INFO] request completed status=200 request_id=61
+2026-10-28 09:02:00 [INFO] request completed status=200 request_id=62
+2026-10-28 09:03:00 [INFO] request completed status=200 request_id=63
+2026-10-28 09:04:00 [INFO] request completed status=200 request_id=64
+2026-10-28 09:05:00 [INFO] request completed status=200 request_id=65
+2026-10-28 09:06:00 [INFO] request completed status=200 request_id=66
+2026-10-28 09:07:00 [INFO] request completed status=200 request_id=67
+2026-10-28 09:08:00 [INFO] request completed status=200 request_id=68
+2026-10-28 09:09:00 [INFO] request completed status=200 request_id=69
+2026-10-28 09:10:00 [INFO] request completed status=200 request_id=70
+2026-10-28 09:10:00 [DEBUG] cache hit key=item-70
+2026-10-28 09:10:00 [ERROR] scheduled export failed: permission denied path=/exports/daily
+2026-10-28 09:11:00 [INFO] request completed status=200 request_id=71
+2026-10-28 09:12:00 [INFO] request completed status=200 request_id=72
+2026-10-28 09:13:00 [INFO] request completed status=200 request_id=73
+2026-10-28 09:14:00 [INFO] request completed status=200 request_id=74
+2026-10-28 09:15:00 [INFO] request completed status=200 request_id=75
+2026-10-28 09:16:00 [INFO] request completed status=200 request_id=76
+2026-10-28 09:17:00 [INFO] request completed status=200 request_id=77
+2026-10-28 09:18:00 [INFO] request completed status=200 request_id=78
+2026-10-28 09:19:00 [INFO] request completed status=200 request_id=79
+2026-10-28 09:20:00 [INFO] request completed status=200 request_id=80
+2026-10-28 09:20:00 [DEBUG] cache hit key=item-80
+2026-10-28 09:21:00 [INFO] request completed status=200 request_id=81
+2026-10-28 09:22:00 [INFO] request completed status=200 request_id=82
+2026-10-28 09:23:00 [INFO] request completed status=200 request_id=83
+2026-10-28 09:24:00 [INFO] request completed status=200 request_id=84
+2026-10-28 09:25:00 [INFO] request completed status=200 request_id=85
+2026-10-28 09:26:00 [INFO] request completed status=200 request_id=86
+2026-10-28 09:27:00 [INFO] request completed status=200 request_id=87
+2026-10-28 09:28:00 [INFO] request completed status=200 request_id=88
+2026-10-28 09:29:00 [INFO] request completed status=200 request_id=89
+2026-10-28 09:30:00 [INFO] request completed status=200 request_id=90
+2026-10-28 09:30:00 [DEBUG] cache hit key=item-90
+2026-10-28 09:30:00 [WARN] authentication rejected status=401 route=/admin (background warning)
+2026-10-28 09:31:00 [INFO] request completed status=200 request_id=91
+2026-10-28 09:32:00 [INFO] request completed status=200 request_id=92
+2026-10-28 09:33:00 [INFO] request completed status=200 request_id=93
+2026-10-28 09:34:00 [INFO] request completed status=200 request_id=94
+2026-10-28 09:35:00 [INFO] request completed status=200 request_id=95
+2026-10-28 09:36:00 [INFO] request completed status=200 request_id=96
+2026-10-28 09:37:00 [INFO] request completed status=200 request_id=97
+2026-10-28 09:38:00 [INFO] request completed status=200 request_id=98
+2026-10-28 09:39:00 [INFO] request completed status=200 request_id=99
+2026-10-28 09:40:00 [INFO] request completed status=200 request_id=100
+2026-10-28 09:40:00 [DEBUG] cache hit key=item-100
+2026-10-28 09:40:00 [ERROR] scheduled export failed: permission denied path=/exports/daily
+2026-10-28 09:41:00 [INFO] request completed status=200 request_id=101
+2026-10-28 09:42:00 [INFO] request completed status=200 request_id=102
+2026-10-28 09:43:00 [INFO] request completed status=200 request_id=103
+2026-10-28 09:44:00 [INFO] request completed status=200 request_id=104
+2026-10-28 09:45:00 [INFO] request completed status=200 request_id=105
+2026-10-28 09:46:00 [INFO] request completed status=200 request_id=106
+2026-10-28 09:47:00 [INFO] request completed status=200 request_id=107
+2026-10-28 09:48:00 [INFO] request completed status=200 request_id=108
+2026-10-28 09:49:00 [INFO] request completed status=200 request_id=109
+2026-10-28 09:50:00 [INFO] request completed status=200 request_id=110
+2026-10-28 09:50:00 [DEBUG] cache hit key=item-110
+2026-10-28 09:51:00 [INFO] request completed status=200 request_id=111
+2026-10-28 09:52:00 [INFO] request completed status=200 request_id=112
+2026-10-28 09:53:00 [INFO] request completed status=200 request_id=113
+2026-10-28 09:54:00 [INFO] request completed status=200 request_id=114
+2026-10-28 09:55:00 [INFO] request completed status=200 request_id=115
+2026-10-28 09:56:00 [INFO] request completed status=200 request_id=116
+2026-10-28 09:57:00 [INFO] request completed status=200 request_id=117
+2026-10-28 09:58:00 [INFO] request completed status=200 request_id=118
+2026-10-28 09:59:00 [INFO] request completed status=200 request_id=119
+{"ts":"2026-10-28 09:59:00","level":"WARN","msg":"upstream latency rising; retry budget nearly exhausted"}
+2026-10-28 10:00:00 [INFO] request completed status=200 request_id=120
+2026-10-28 10:00:00 [DEBUG] cache hit key=item-120
+2026-10-28 10:00:00 [WARN] authentication rejected status=401 route=/admin (background warning)
+{"ts":"2026-10-28 10:00:00","level":"ERROR","msg":"upstream connection refused host=inventory.local port=8080"}
+{"ts":"2026-10-28 10:00:00","level":"ERROR","msg":"HTTP 503 service unavailable route=/checkout request_id=202"}
+{"ts":"2026-10-28 10:00:00","level":"ERROR","msg":"TLS certificate expired host=payments.local"}
+2026-10-28 10:01:00 [INFO] request completed status=200 request_id=121
+{"ts":"2026-10-28 10:01:00","level":"ERROR","msg":"upstream connection refused host=inventory.local port=8080"}
+{"ts":"2026-10-28 10:01:00","level":"ERROR","msg":"HTTP 503 service unavailable route=/checkout request_id=202"}
+{"ts":"2026-10-28 10:01:00","level":"ERROR","msg":"TLS certificate expired host=payments.local"}
+2026-10-28 10:02:00 [INFO] request completed status=200 request_id=122
+{"ts":"2026-10-28 10:02:00","level":"ERROR","msg":"upstream connection refused host=inventory.local port=8080"}
+{"ts":"2026-10-28 10:02:00","level":"ERROR","msg":"HTTP 503 service unavailable route=/checkout request_id=202"}
+{"ts":"2026-10-28 10:02:00","level":"ERROR","msg":"TLS certificate expired host=payments.local"}
+2026-10-28 10:03:00 [INFO] request completed status=200 request_id=123
+{"ts":"2026-10-28 10:03:00","level":"ERROR","msg":"upstream connection refused host=inventory.local port=8080"}
+{"ts":"2026-10-28 10:03:00","level":"ERROR","msg":"HTTP 503 service unavailable route=/checkout request_id=202"}
+{"ts":"2026-10-28 10:03:00","level":"ERROR","msg":"TLS certificate expired host=payments.local"}
+2026-10-28 10:04:00 [INFO] request completed status=200 request_id=124
+{"ts":"2026-10-28 10:04:00","level":"ERROR","msg":"upstream connection refused host=inventory.local port=8080"}
+{"ts":"2026-10-28 10:04:00","level":"ERROR","msg":"HTTP 503 service unavailable route=/checkout request_id=202"}
+{"ts":"2026-10-28 10:04:00","level":"ERROR","msg":"TLS certificate expired host=payments.local"}
+2026-10-28 10:05:00 [INFO] request completed status=200 request_id=125
+{"ts":"2026-10-28 10:05:00","level":"INFO","msg":"upstream available; certificate replaced; circuit breaker closed"}
+2026-10-28 10:06:00 [INFO] request completed status=200 request_id=126
+2026-10-28 10:07:00 [INFO] request completed status=200 request_id=127
+2026-10-28 10:08:00 [INFO] request completed status=200 request_id=128
+2026-10-28 10:09:00 [INFO] request completed status=200 request_id=129
+2026-10-28 10:10:00 [INFO] request completed status=200 request_id=130
+2026-10-28 10:10:00 [DEBUG] cache hit key=item-130
+2026-10-28 10:10:00 [ERROR] scheduled export failed: permission denied path=/exports/daily
+2026-10-28 10:11:00 [INFO] request completed status=200 request_id=131
+2026-10-28 10:12:00 [INFO] request completed status=200 request_id=132
+2026-10-28 10:13:00 [INFO] request completed status=200 request_id=133
+2026-10-28 10:14:00 [INFO] request completed status=200 request_id=134
+2026-10-28 10:15:00 [INFO] request completed status=200 request_id=135
+2026-10-28 10:16:00 [INFO] request completed status=200 request_id=136
+2026-10-28 10:17:00 [INFO] request completed status=200 request_id=137
+2026-10-28 10:18:00 [INFO] request completed status=200 request_id=138
+2026-10-28 10:19:00 [INFO] request completed status=200 request_id=139
+2026-10-28 10:20:00 [INFO] request completed status=200 request_id=140
+2026-10-28 10:20:00 [DEBUG] cache hit key=item-140
+2026-10-28 10:21:00 [INFO] request completed status=200 request_id=141
+2026-10-28 10:22:00 [INFO] request completed status=200 request_id=142
+2026-10-28 10:23:00 [INFO] request completed status=200 request_id=143
+2026-10-28 10:24:00 [INFO] request completed status=200 request_id=144
+2026-10-28 10:25:00 [INFO] request completed status=200 request_id=145
+2026-10-28 10:26:00 [INFO] request completed status=200 request_id=146
+2026-10-28 10:27:00 [INFO] request completed status=200 request_id=147
+2026-10-28 10:28:00 [INFO] request completed status=200 request_id=148
+2026-10-28 10:29:00 [INFO] request completed status=200 request_id=149
+2026-10-28 10:30:00 [INFO] request completed status=200 request_id=150
+2026-10-28 10:30:00 [DEBUG] cache hit key=item-150
+2026-10-28 10:30:00 [WARN] authentication rejected status=401 route=/admin (background warning)
+2026-10-28 10:31:00 [INFO] request completed status=200 request_id=151
+2026-10-28 10:32:00 [INFO] request completed status=200 request_id=152
+2026-10-28 10:33:00 [INFO] request completed status=200 request_id=153
+2026-10-28 10:34:00 [INFO] request completed status=200 request_id=154
+2026-10-28 10:35:00 [INFO] request completed status=200 request_id=155
+2026-10-28 10:36:00 [INFO] request completed status=200 request_id=156
+2026-10-28 10:37:00 [INFO] request completed status=200 request_id=157
+2026-10-28 10:38:00 [INFO] request completed status=200 request_id=158
+2026-10-28 10:39:00 [INFO] request completed status=200 request_id=159
+2026-10-28 10:40:00 [INFO] request completed status=200 request_id=160
+2026-10-28 10:40:00 [DEBUG] cache hit key=item-160
+2026-10-28 10:40:00 [ERROR] scheduled export failed: permission denied path=/exports/daily
+2026-10-28 10:41:00 [INFO] request completed status=200 request_id=161
+2026-10-28 10:42:00 [INFO] request completed status=200 request_id=162
+2026-10-28 10:43:00 [INFO] request completed status=200 request_id=163
+2026-10-28 10:44:00 [INFO] request completed status=200 request_id=164
+2026-10-28 10:45:00 [INFO] request completed status=200 request_id=165
+2026-10-28 10:46:00 [INFO] request completed status=200 request_id=166
+2026-10-28 10:47:00 [INFO] request completed status=200 request_id=167
+2026-10-28 10:48:00 [INFO] request completed status=200 request_id=168
+2026-10-28 10:49:00 [INFO] request completed status=200 request_id=169
+2026-10-28 10:50:00 [INFO] request completed status=200 request_id=170
+2026-10-28 10:50:00 [DEBUG] cache hit key=item-170
+2026-10-28 10:51:00 [INFO] request completed status=200 request_id=171
+2026-10-28 10:52:00 [INFO] request completed status=200 request_id=172
+2026-10-28 10:53:00 [INFO] request completed status=200 request_id=173
+2026-10-28 10:54:00 [INFO] request completed status=200 request_id=174
+2026-10-28 10:55:00 [INFO] request completed status=200 request_id=175
+2026-10-28 10:56:00 [INFO] request completed status=200 request_id=176
+2026-10-28 10:57:00 [INFO] request completed status=200 request_id=177
+2026-10-28 10:58:00 [INFO] request completed status=200 request_id=178
+2026-10-28 10:59:00 [INFO] request completed status=200 request_id=179
+2026-10-28 11:00:00 [INFO] request completed status=200 request_id=180
+2026-10-28 11:00:00 [DEBUG] cache hit key=item-180
+2026-10-28 11:00:00 [WARN] authentication rejected status=401 route=/admin (background warning)
+2026-10-28 11:01:00 [INFO] request completed status=200 request_id=181
+2026-10-28 11:02:00 [INFO] request completed status=200 request_id=182
+2026-10-28 11:03:00 [INFO] request completed status=200 request_id=183
+2026-10-28 11:04:00 [INFO] request completed status=200 request_id=184
+2026-10-28 11:05:00 [INFO] request completed status=200 request_id=185
+2026-10-28 11:06:00 [INFO] request completed status=200 request_id=186
+2026-10-28 11:07:00 [INFO] request completed status=200 request_id=187
+2026-10-28 11:08:00 [INFO] request completed status=200 request_id=188
+2026-10-28 11:09:00 [INFO] request completed status=200 request_id=189
+2026-10-28 11:10:00 [INFO] request completed status=200 request_id=190
+2026-10-28 11:10:00 [DEBUG] cache hit key=item-190
+2026-10-28 11:10:00 [ERROR] scheduled export failed: permission denied path=/exports/daily
+2026-10-28 11:11:00 [INFO] request completed status=200 request_id=191
+2026-10-28 11:12:00 [INFO] request completed status=200 request_id=192
+2026-10-28 11:13:00 [INFO] request completed status=200 request_id=193
+2026-10-28 11:14:00 [INFO] request completed status=200 request_id=194
+2026-10-28 11:15:00 [INFO] request completed status=200 request_id=195
+2026-10-28 11:16:00 [INFO] request completed status=200 request_id=196
+2026-10-28 11:17:00 [INFO] request completed status=200 request_id=197
+2026-10-28 11:18:00 [INFO] request completed status=200 request_id=198
+2026-10-28 11:19:00 [INFO] request completed status=200 request_id=199
+2026-10-28 11:19:00 [WARN] worker memory high; disk free space low
+2026-10-28 11:20:00 [INFO] request completed status=200 request_id=200
+2026-10-28 11:20:00 [DEBUG] cache hit key=item-200
+2026-10-28 11:20:00 [FATAL] worker out of memory worker=7 allocation_bytes=1048576
+2026-10-28 11:20:00 [ERROR] disk write failed: no space left on device path=/var/log/app
+2026-10-28 11:20:00 [ERROR] unhandled exception: TypeError cannot read property order_id
+    at processOrder (orders.mbt:42)
+    at runWorker (worker.mbt:18)
+2026-10-28 11:21:00 [INFO] request completed status=200 request_id=201
+2026-10-28 11:21:00 [FATAL] worker out of memory worker=7 allocation_bytes=1048576
+2026-10-28 11:21:00 [ERROR] disk write failed: no space left on device path=/var/log/app
+2026-10-28 11:21:00 [ERROR] unhandled exception: TypeError cannot read property order_id
+2026-10-28 11:22:00 [INFO] request completed status=200 request_id=202
+2026-10-28 11:22:00 [FATAL] worker out of memory worker=7 allocation_bytes=1048576
+2026-10-28 11:22:00 [ERROR] disk write failed: no space left on device path=/var/log/app
+2026-10-28 11:22:00 [ERROR] unhandled exception: TypeError cannot read property order_id
+2026-10-28 11:23:00 [INFO] request completed status=200 request_id=203
+2026-10-28 11:23:00 [FATAL] worker out of memory worker=7 allocation_bytes=1048576
+2026-10-28 11:23:00 [ERROR] disk write failed: no space left on device path=/var/log/app
+2026-10-28 11:23:00 [ERROR] unhandled exception: TypeError cannot read property order_id
+2026-10-28 11:24:00 [INFO] request completed status=200 request_id=204
+2026-10-28 11:24:00 [FATAL] worker out of memory worker=7 allocation_bytes=1048576
+2026-10-28 11:24:00 [ERROR] disk write failed: no space left on device path=/var/log/app
+2026-10-28 11:24:00 [ERROR] unhandled exception: TypeError cannot read property order_id
+2026-10-28 11:25:00 [INFO] request completed status=200 request_id=205
+2026-10-28 11:25:00 [INFO] worker restarted; disk cleanup completed; requests resumed
+2026-10-28 11:26:00 [INFO] request completed status=200 request_id=206
+2026-10-28 11:27:00 [INFO] request completed status=200 request_id=207
+2026-10-28 11:28:00 [INFO] request completed status=200 request_id=208
+2026-10-28 11:29:00 [INFO] request completed status=200 request_id=209
+2026-10-28 11:30:00 [INFO] request completed status=200 request_id=210
+2026-10-28 11:30:00 [DEBUG] cache hit key=item-210
+2026-10-28 11:30:00 [WARN] authentication rejected status=401 route=/admin (background warning)
+2026-10-28 11:31:00 [INFO] request completed status=200 request_id=211
+2026-10-28 11:32:00 [INFO] request completed status=200 request_id=212
+2026-10-28 11:33:00 [INFO] request completed status=200 request_id=213
+2026-10-28 11:34:00 [INFO] request completed status=200 request_id=214
+2026-10-28 11:35:00 [INFO] request completed status=200 request_id=215
+2026-10-28 11:36:00 [INFO] request completed status=200 request_id=216
+2026-10-28 11:37:00 [INFO] request completed status=200 request_id=217
+2026-10-28 11:38:00 [INFO] request completed status=200 request_id=218
+2026-10-28 11:39:00 [INFO] request completed status=200 request_id=219
+2026-10-28 11:40:00 [INFO] request completed status=200 request_id=220
+2026-10-28 11:40:00 [DEBUG] cache hit key=item-220
+2026-10-28 11:40:00 [ERROR] scheduled export failed: permission denied path=/exports/daily
+2026-10-28 11:41:00 [INFO] request completed status=200 request_id=221
+2026-10-28 11:42:00 [INFO] request completed status=200 request_id=222
+2026-10-28 11:43:00 [INFO] request completed status=200 request_id=223
+2026-10-28 11:44:00 [INFO] request completed status=200 request_id=224
+2026-10-28 11:45:00 [INFO] request completed status=200 request_id=225
+2026-10-28 11:46:00 [INFO] request completed status=200 request_id=226
+2026-10-28 11:47:00 [INFO] request completed status=200 request_id=227
+2026-10-28 11:48:00 [INFO] request completed status=200 request_id=228
+2026-10-28 11:49:00 [INFO] request completed status=200 request_id=229
+2026-10-28 11:50:00 [INFO] request completed status=200 request_id=230
+2026-10-28 11:50:00 [DEBUG] cache hit key=item-230
+2026-10-28 11:51:00 [INFO] request completed status=200 request_id=231
+2026-10-28 11:52:00 [INFO] request completed status=200 request_id=232
+2026-10-28 11:53:00 [INFO] request completed status=200 request_id=233
+2026-10-28 11:54:00 [INFO] request completed status=200 request_id=234
+2026-10-28 11:55:00 [INFO] request completed status=200 request_id=235
+2026-10-28 11:56:00 [INFO] request completed status=200 request_id=236
+2026-10-28 11:57:00 [INFO] request completed status=200 request_id=237
+2026-10-28 11:58:00 [INFO] request completed status=200 request_id=238
+2026-10-28 11:59:00 [INFO] request completed status=200 request_id=239

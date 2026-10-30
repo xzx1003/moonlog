@@ -9,7 +9,7 @@
     />
     <title>MoonLog · 日志尖峰分析</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="styles.css?v=4" />
+    <link rel="stylesheet" href="styles.css?v=5" />
   </head>
   <body>
     <header class="masthead">
@@ -46,7 +46,7 @@
                   required
                 />
                 <p id="file-info" class="field-note file-info" hidden></p>
-                <p id="file-hint" class="field-note">文本日志 / JSON Lines · UTF-8 · 单文件 · 单行 ≤ 64 KiB</p><button id="load-example" class="button-quiet" type="button">使用示例日志</button>
+                <p id="file-hint" class="field-note">文本日志 / JSON Lines · UTF-8 · 单文件 · 单行 ≤ 64 KiB</p><button id="load-example" class="button-quiet" type="button">使用示例日志</button><p class="field-note">合成示例：数据库、上游服务、进程与磁盘故障。载入时样本上限设为 100，便于查看各段上下文。</p>
               </div>
 
               <section class="field-group detect-group step-panel" data-step="1" hidden aria-labelledby="parameters-title"><h3 id="parameters-title" class="step-title" tabindex="-1">分析参数</h3><p class="step-note">可以直接使用默认值。</p>
@@ -263,6 +263,6 @@
     </footer>
 
     <noscript>此页面需要启用 JavaScript 才能运行本地分析。</noscript>
-    <script type="module" src="app.js?v=4"></script>
+    <script type="module" src="app.js?v=5"></script>
   </body>
 </html>
