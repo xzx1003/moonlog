@@ -34,3 +34,10 @@ web-serve:
 .PHONY: bench
 bench: build
 	python3 scripts/bench_cli.py
+
+GO ?= go
+.PHONY: bench-compare
+bench-compare:
+	moon build benchmarks/compare --target native --release
+	$(GO) build -o /tmp/moonlog-go-reference benchmarks/compare/main.go
+	python3 benchmarks/compare/run.py --go /tmp/moonlog-go-reference

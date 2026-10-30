@@ -1,0 +1,71 @@
+[
+  {
+    "dataset": "Apache",
+    "provenance": {
+      "source": "https://raw.githubusercontent.com/logpai/loghub/dd61d0952749ee7963bde24220d1be5ede023033/Apache/Apache_2k.log_structured.csv",
+      "csv_sha256": "54331d12eedf513f2127f4d89f0284c8b15fddfa5471103abf9db2c73d737778",
+      "rows": 2000,
+      "normalized_lines": 2000,
+      "timed_lines": 2000,
+      "normalized_sha256": "44e8e5c37f5ab3738b8bd4c2bece36e38bc3fc0a68ca5050f225a05edb8d83fb",
+      "timestamp_policy": "source clock preserved, timezone unknown; interpreted as UTC for arithmetic only"
+    },
+    "lines": 2000,
+    "errors": 595,
+    "spikes": 15,
+    "raw_levels": {
+      "NOTICE": 1405,
+      "ERROR": 595
+    },
+    "labeled_alert_rows": null,
+    "labeled_alert_rows_inside_spike_windows": null,
+    "warning": "2k sample is not a continuous incident trace; timestamp timezone unknown; normalization required; no precision/recall claim"
+  },
+  {
+    "dataset": "OpenStack",
+    "provenance": {
+      "source": "https://raw.githubusercontent.com/logpai/loghub/dd61d0952749ee7963bde24220d1be5ede023033/OpenStack/OpenStack_2k.log_structured.csv",
+      "csv_sha256": "ecc88e7909777181824260e9bdacd1469bd24d55131d6fc14e9c8c17edc49ff0",
+      "rows": 2000,
+      "normalized_lines": 2000,
+      "timed_lines": 2000,
+      "normalized_sha256": "636a20113aa2b92f08709c464f2bbe13113dd67bd44c3e8ef73d85e23ead51c6",
+      "timestamp_policy": "source clock preserved, timezone unknown; interpreted as UTC for arithmetic only"
+    },
+    "lines": 2000,
+    "errors": 0,
+    "spikes": 0,
+    "raw_levels": {
+      "INFO": 1969,
+      "WARNING": 31
+    },
+    "labeled_alert_rows": null,
+    "labeled_alert_rows_inside_spike_windows": null,
+    "warning": "2k sample is not a continuous incident trace; timestamp timezone unknown; normalization required; no precision/recall claim"
+  },
+  {
+    "dataset": "BGL",
+    "provenance": {
+      "source": "https://raw.githubusercontent.com/logpai/loghub/dd61d0952749ee7963bde24220d1be5ede023033/BGL/BGL_2k.log_structured.csv",
+      "csv_sha256": "3fe74103c0b02a28514534e2a47257a3f770135ca61afd425bbd3b9d6a31fe26",
+      "rows": 2000,
+      "normalized_lines": 2000,
+      "timed_lines": 2000,
+      "normalized_sha256": "26e053820d71663925c600a23a596d028e4b9c6a5309a968b842b8cf0ae65027",
+      "timestamp_policy": "source clock preserved, timezone unknown; interpreted as UTC for arithmetic only"
+    },
+    "lines": 2000,
+    "errors": 388,
+    "spikes": 11,
+    "raw_levels": {
+      "INFO": 1597,
+      "FATAL": 347,
+      "WARNING": 8,
+      "SEVERE": 7,
+      "ERROR": 41
+    },
+    "labeled_alert_rows": 143,
+    "labeled_alert_rows_inside_spike_windows": 37,
+    "warning": "2k sample is not a continuous incident trace; timestamp timezone unknown; normalization required; no precision/recall claim"
+  }
+]

@@ -1,0 +1,7 @@
+import {
+  "moonlog/cli" @engine,
+  "moonlog/cli/nativeio" @io,
+  "moonbitlang/core/env",
+}
+
+pkgtype(kind: "executable")

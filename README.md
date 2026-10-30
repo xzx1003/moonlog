@@ -630,6 +630,12 @@ SHA-256 用于检查下载内容是否一致，不替代发布者签名。当前
 
 ## Benchmark
 
+### MoonBit 与 Go 对照
+
+项目还提供一个与 Go 标准库适配器的同输入、同输出对照，测量吞吐量、CPU 时间和峰值 RSS。它只比较流式解析、5 分钟聚合、签名统计和 SHA-256 等受限计算契约，不代表两种语言在完整 CLI 或任意日志格式上的性能。
+
+在 Apple M5 / 16 GiB、macOS arm64 上，100 MiB 级输入的中位数结果为：文本 MoonBit 60.1–65.0 MiB/s、Go 259.2–399.2 MiB/s；JSON Lines MoonBit 51.1–55.1 MiB/s、Go 81.2–86.3 MiB/s。MoonBit 进程峰值 RSS 约 2.3–2.4 MiB，Go 约 10–11 MiB。完整结果、原始样本和复现命令见 [benchmarks/compare/README.md](benchmarks/compare/README.md)。
+
 > 以下已保存结果测于 SHA-256 / Int64 重构之前（源提交 `6aad1df`，详见原始数据中的二进制哈希），属于历史基线，不能作为当前版本性能承诺。请用 `make bench` 重测当前实现。
 
 原生 CLI 本机实测（Apple M5、16 GiB 内存、macOS arm64）：每组预热 1 次、正式运行 5 次，以下耗时为中位数。低 / 高错误密度分别为 0.1% / 20%。
@@ -648,3 +654,9 @@ SHA-256 用于检查下载内容是否一致，不替代发布者签名。当前
 - **[完整结果与环境信息](benchmarks/macos-arm64.md)**：全部规模、耗时、吞吐量及峰值内存。
 - **[原始测量数据](benchmarks/macos-arm64.json)**：逐次运行记录、输入 SHA-256 和二进制 SHA-256。
 - **[测量方法与复现说明](benchmarks/README.md)**：执行 `make bench` 可重新运行；无需第三方 Python 依赖。
+
+### 真实日志样本验收
+
+`validation/` 使用 Loghub 固定版本中的 Apache、OpenStack、BGL 三类公开研究样本，保留行序并做有限标识符替换，独立核对行数、错误计数、时间桶和尖峰结果。摘要与来源见 [validation/loghub-results.md](validation/loghub-results.md)，结构化证据见 [validation/loghub-results.json](validation/loghub-results.json)。原始和归一化日志在本地 `validation/data/`，不会提交。
+
+这组数据验证了不同业务日志的适配边界和报告可读性，但不是连续生产事故记录，也没有已知故障起止。因此不能据此宣称准确率、召回率或根因识别能力；后续仍需要带时间线的脱敏业务样本做误报、漏报验收。

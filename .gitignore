@@ -12,3 +12,7 @@ target
 
 # Generated WASM artifact for the static web page; rebuild with make web-build.
 /web/generated/
+
+# Downloaded research data and local Python caches.
+/validation/data/
+__pycache__/

@@ -1,0 +1,812 @@
+{
+  "environment": {
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "hardware": {
+      "cpu": "Apple M5",
+      "ram_bytes": 17179869184
+    },
+    "moon": "moon 0.1.20261023 (3778465 2026-10-23) ~/.moon/bin/moon\nmoonc v0.10.17+d971670cd (2026-10-23) ~/.moon/bin/moonc\nmoonrun 0.1.20261023 (3778465 2026-10-23) ~/.moon/bin/moonrun\n\nFeature flags enabled: rr_moon_mod,rr_moon_pkg\n",
+    "go": "go1.25.3",
+    "binary_sha256": {
+      "moonbit": "32b6bd0e316d5e6cdb157be0944cb62a2d562fa9b76214d6f853df2e996a8787",
+      "go": "75c05de38b4cb19efbbdb1dab770cdc3bd30c0ea8423e63f0a9d2bc319d9e6df"
+    }
+  },
+  "runs": 5,
+  "warmups": 1,
+  "scope": "common benchmark contract only; no full CLI/report/context comparison",
+  "cases": [
+    {
+      "name": "text-10-sparse",
+      "input": {
+        "total": 66000,
+        "errors": 66,
+        "bytes": 8898890,
+        "sha256": "bb317ab2877cdc17269b83ce1c6b58e128598fc69188f83df01686610444ecfe"
+      },
+      "samples": {
+        "moonbit": [
+          {
+            "seconds": 0.13345595799999999,
+            "peak_rss_mib": 2.3125,
+            "user_seconds": 0.12374399999999999,
+            "system_seconds": 0.004828,
+            "mib_per_second": 63.591337282404545
+          },
+          {
+            "seconds": 0.12932045800000003,
+            "peak_rss_mib": 2.3125,
+            "user_seconds": 0.122142,
+            "system_seconds": 0.004225,
+            "mib_per_second": 65.62490551591158
+          },
+          {
+            "seconds": 0.132939292,
+            "peak_rss_mib": 2.3125,
+            "user_seconds": 0.123273,
+            "system_seconds": 0.0047859999999999995,
+            "mib_per_second": 63.83848379096539
+          },
+          {
+            "seconds": 0.135105959,
+            "peak_rss_mib": 2.3125,
+            "user_seconds": 0.125719,
+            "system_seconds": 0.004893,
+            "mib_per_second": 62.814718909063174
+          },
+          {
+            "seconds": 0.13344208400000002,
+            "peak_rss_mib": 2.3125,
+            "user_seconds": 0.12387899999999999,
+            "system_seconds": 0.0044989999999999995,
+            "mib_per_second": 63.597948886382895
+          }
+        ],
+        "go": [
+          {
+            "seconds": 0.025107667,
+            "peak_rss_mib": 9.96875,
+            "user_seconds": 0.020711,
+            "system_seconds": 0.00413,
+            "mib_per_second": 338.01001254017007
+          },
+          {
+            "seconds": 0.023691792000000045,
+            "peak_rss_mib": 9.828125,
+            "user_seconds": 0.020128,
+            "system_seconds": 0.0037719999999999997,
+            "mib_per_second": 358.21025431611076
+          },
+          {
+            "seconds": 0.025069416999999983,
+            "peak_rss_mib": 9.921875,
+            "user_seconds": 0.02013,
+            "system_seconds": 0.004305,
+            "mib_per_second": 338.525735860727
+          },
+          {
+            "seconds": 0.026075958999999926,
+            "peak_rss_mib": 9.828125,
+            "user_seconds": 0.020850999999999998,
+            "system_seconds": 0.004478,
+            "mib_per_second": 325.45851285946713
+          },
+          {
+            "seconds": 0.028768333000000035,
+            "peak_rss_mib": 9.765625,
+            "user_seconds": 0.020676,
+            "system_seconds": 0.0044069999999999995,
+            "mib_per_second": 294.9994647769269
+          }
+        ]
+      },
+      "summary": {
+        "moonbit": {
+          "median_seconds": 0.13344208400000002,
+          "median_mib_per_second": 63.597948886382895,
+          "max_rss_mib": 2.3125,
+          "median_cpu_seconds": 0.128378
+        },
+        "go": {
+          "median_seconds": 0.025107667,
+          "median_mib_per_second": 338.01001254017007,
+          "max_rss_mib": 9.96875,
+          "median_cpu_seconds": 0.024841000000000002
+        }
+      }
+    },
+    {
+      "name": "text-10-dense",
+      "input": {
+        "total": 66000,
+        "errors": 13200,
+        "bytes": 8898890,
+        "sha256": "df4049faeb3b81a67aa2c8b2fec0e38c52d14fc515e23e3903ed55ea93240f19"
+      },
+      "samples": {
+        "moonbit": [
+          {
+            "seconds": 0.14391116699999995,
+            "peak_rss_mib": 2.359375,
+            "user_seconds": 0.13486599999999999,
+            "system_seconds": 0.004593,
+            "mib_per_second": 58.97139891530736
+          },
+          {
+            "seconds": 0.1444924999999999,
+            "peak_rss_mib": 2.34375,
+            "user_seconds": 0.13408,
+            "system_seconds": 0.0049099999999999994,
+            "mib_per_second": 58.734140786022934
+          },
+          {
+            "seconds": 0.16946791699999997,
+            "peak_rss_mib": 2.34375,
+            "user_seconds": 0.137101,
+            "system_seconds": 0.005908999999999999,
+            "mib_per_second": 50.078168114407255
+          },
+          {
+            "seconds": 0.1502418339999998,
+            "peak_rss_mib": 2.296875,
+            "user_seconds": 0.13705599999999998,
+            "system_seconds": 0.005435,
+            "mib_per_second": 56.48654979494211
+          },
+          {
+            "seconds": 0.1458272919999999,
+            "peak_rss_mib": 2.34375,
+            "user_seconds": 0.136626,
+            "system_seconds": 0.004672,
+            "mib_per_second": 58.1965331806643
+          }
+        ],
+        "go": [
+          {
+            "seconds": 0.03552166599999995,
+            "peak_rss_mib": 10.25,
+            "user_seconds": 0.031125,
+            "system_seconds": 0.004715,
+            "mib_per_second": 238.9145497152196
+          },
+          {
+            "seconds": 0.036656709000000065,
+            "peak_rss_mib": 9.5625,
+            "user_seconds": 0.031571,
+            "system_seconds": 0.004535,
+            "mib_per_second": 231.5167692092708
+          },
+          {
+            "seconds": 0.043080832999999874,
+            "peak_rss_mib": 10.015625,
+            "user_seconds": 0.031997,
+            "system_seconds": 0.005928,
+            "mib_per_second": 196.99347126190523
+          },
+          {
+            "seconds": 0.03669266700000007,
+            "peak_rss_mib": 9.78125,
+            "user_seconds": 0.031576,
+            "system_seconds": 0.004621,
+            "mib_per_second": 231.28988790933073
+          },
+          {
+            "seconds": 0.037889083999999684,
+            "peak_rss_mib": 9.953125,
+            "user_seconds": 0.031931999999999995,
+            "system_seconds": 0.005365,
+            "mib_per_second": 223.9864874411977
+          }
+        ]
+      },
+      "summary": {
+        "moonbit": {
+          "median_seconds": 0.1458272919999999,
+          "median_mib_per_second": 58.1965331806643,
+          "max_rss_mib": 2.359375,
+          "median_cpu_seconds": 0.141298
+        },
+        "go": {
+          "median_seconds": 0.03669266700000007,
+          "median_mib_per_second": 231.28988790933073,
+          "max_rss_mib": 10.25,
+          "median_cpu_seconds": 0.036197
+        }
+      }
+    },
+    {
+      "name": "jsonl-10-sparse",
+      "input": {
+        "total": 66000,
+        "errors": 66,
+        "bytes": 10548890,
+        "sha256": "d06cbc1e4e9800d2fe5c34e7811d2f748a67fdd4b4daba2de7e5a701ba7d909d"
+      },
+      "samples": {
+        "moonbit": [
+          {
+            "seconds": 0.18149283400000016,
+            "peak_rss_mib": 2.328125,
+            "user_seconds": 0.170713,
+            "system_seconds": 0.004984,
+            "mib_per_second": 55.430317758962964
+          },
+          {
+            "seconds": 0.18098379200000014,
+            "peak_rss_mib": 2.328125,
+            "user_seconds": 0.171312,
+            "system_seconds": 0.005155,
+            "mib_per_second": 55.58622321050008
+          },
+          {
+            "seconds": 0.18791687499999998,
+            "peak_rss_mib": 2.375,
+            "user_seconds": 0.173531,
+            "system_seconds": 0.006122,
+            "mib_per_second": 53.535402073894254
+          },
+          {
+            "seconds": 0.18325045899999992,
+            "peak_rss_mib": 2.375,
+            "user_seconds": 0.17213799999999999,
+            "system_seconds": 0.005598,
+            "mib_per_second": 54.89866445352113
+          },
+          {
+            "seconds": 0.18005633299999957,
+            "peak_rss_mib": 2.34375,
+            "user_seconds": 0.170225,
+            "system_seconds": 0.005157999999999999,
+            "mib_per_second": 55.8725443975067
+          }
+        ],
+        "go": [
+          {
+            "seconds": 0.11059295800000024,
+            "peak_rss_mib": 10.46875,
+            "user_seconds": 0.104417,
+            "system_seconds": 0.008076,
+            "mib_per_second": 90.96605825114746
+          },
+          {
+            "seconds": 0.11668366699999977,
+            "peak_rss_mib": 10.3125,
+            "user_seconds": 0.107097,
+            "system_seconds": 0.010409999999999999,
+            "mib_per_second": 86.21776910383478
+          },
+          {
+            "seconds": 0.1212725830000001,
+            "peak_rss_mib": 10.078125,
+            "user_seconds": 0.110759,
+            "system_seconds": 0.008716999999999999,
+            "mib_per_second": 82.95531612116086
+          },
+          {
+            "seconds": 0.11970970899999989,
+            "peak_rss_mib": 10.53125,
+            "user_seconds": 0.108869,
+            "system_seconds": 0.010614,
+            "mib_per_second": 84.03834194931287
+          },
+          {
+            "seconds": 0.1210819170000006,
+            "peak_rss_mib": 10.09375,
+            "user_seconds": 0.110526,
+            "system_seconds": 0.0076809999999999995,
+            "mib_per_second": 83.0859446963883
+          }
+        ]
+      },
+      "summary": {
+        "moonbit": {
+          "median_seconds": 0.18149283400000016,
+          "median_mib_per_second": 55.430317758962964,
+          "max_rss_mib": 2.375,
+          "median_cpu_seconds": 0.17646699999999998
+        },
+        "go": {
+          "median_seconds": 0.11970970899999989,
+          "median_mib_per_second": 84.03834194931287,
+          "max_rss_mib": 10.53125,
+          "median_cpu_seconds": 0.11820699999999999
+        }
+      }
+    },
+    {
+      "name": "jsonl-10-dense",
+      "input": {
+        "total": 66000,
+        "errors": 13200,
+        "bytes": 10548890,
+        "sha256": "45d3cad0affc9aa6fe1d0c8c731907e16d444c871d8046ab05e92d149488eba3"
+      },
+      "samples": {
+        "moonbit": [
+          {
+            "seconds": 0.19160941699999956,
+            "peak_rss_mib": 2.390625,
+            "user_seconds": 0.17959699999999998,
+            "system_seconds": 0.005392999999999999,
+            "mib_per_second": 52.503711023737154
+          },
+          {
+            "seconds": 0.19544212499999958,
+            "peak_rss_mib": 2.375,
+            "user_seconds": 0.179929,
+            "system_seconds": 0.0047009999999999994,
+            "mib_per_second": 51.47408962931993
+          },
+          {
+            "seconds": 0.19081341699999932,
+            "peak_rss_mib": 2.421875,
+            "user_seconds": 0.180196,
+            "system_seconds": 0.004843,
+            "mib_per_second": 52.72273626122823
+          },
+          {
+            "seconds": 0.19387387500000042,
+            "peak_rss_mib": 2.375,
+            "user_seconds": 0.179412,
+            "system_seconds": 0.006608999999999999,
+            "mib_per_second": 51.8904646621145
+          },
+          {
+            "seconds": 0.19297308300000005,
+            "peak_rss_mib": 2.375,
+            "user_seconds": 0.178395,
+            "system_seconds": 0.004782,
+            "mib_per_second": 52.13268764325398
+          }
+        ],
+        "go": [
+          {
+            "seconds": 0.13464583399999963,
+            "peak_rss_mib": 10.203125,
+            "user_seconds": 0.122139,
+            "system_seconds": 0.008246999999999999,
+            "mib_per_second": 74.71605441275483
+          },
+          {
+            "seconds": 0.1302163329999999,
+            "peak_rss_mib": 10.09375,
+            "user_seconds": 0.119112,
+            "system_seconds": 0.008567,
+            "mib_per_second": 77.25763141859274
+          },
+          {
+            "seconds": 0.1275746249999994,
+            "peak_rss_mib": 10.109375,
+            "user_seconds": 0.11870599999999999,
+            "system_seconds": 0.008017999999999999,
+            "mib_per_second": 78.85741744954983
+          },
+          {
+            "seconds": 0.1431091250000005,
+            "peak_rss_mib": 10.171875,
+            "user_seconds": 0.12353299999999999,
+            "system_seconds": 0.008381,
+            "mib_per_second": 70.29744231609753
+          },
+          {
+            "seconds": 0.2530235000000003,
+            "peak_rss_mib": 10.390625,
+            "user_seconds": 0.121557,
+            "system_seconds": 0.01286,
+            "mib_per_second": 39.75996482379983
+          }
+        ]
+      },
+      "summary": {
+        "moonbit": {
+          "median_seconds": 0.19297308300000005,
+          "median_mib_per_second": 52.13268764325398,
+          "max_rss_mib": 2.421875,
+          "median_cpu_seconds": 0.18499
+        },
+        "go": {
+          "median_seconds": 0.13464583399999963,
+          "median_mib_per_second": 74.71605441275483,
+          "max_rss_mib": 10.390625,
+          "median_cpu_seconds": 0.130386
+        }
+      }
+    },
+    {
+      "name": "text-100-sparse",
+      "input": {
+        "total": 656000,
+        "errors": 656,
+        "bytes": 89104890,
+        "sha256": "aa77846d4586b97dc4482f65bde0a9474e99be4db6f49cb465641be16a8166f5"
+      },
+      "samples": {
+        "moonbit": [
+          {
+            "seconds": 1.3144582079999996,
+            "peak_rss_mib": 2.375,
+            "user_seconds": 1.242888,
+            "system_seconds": 0.033034,
+            "mib_per_second": 64.64796259175105
+          },
+          {
+            "seconds": 1.2964237500000007,
+            "peak_rss_mib": 2.375,
+            "user_seconds": 1.233029,
+            "system_seconds": 0.030327999999999997,
+            "mib_per_second": 65.54727577245022
+          },
+          {
+            "seconds": 1.2981342920000003,
+            "peak_rss_mib": 2.375,
+            "user_seconds": 1.238632,
+            "system_seconds": 0.030713999999999998,
+            "mib_per_second": 65.46090460970896
+          },
+          {
+            "seconds": 1.3074672090000004,
+            "peak_rss_mib": 2.359375,
+            "user_seconds": 1.241822,
+            "system_seconds": 0.033502,
+            "mib_per_second": 64.99363385503007
+          },
+          {
+            "seconds": 1.3157815419999999,
+            "peak_rss_mib": 2.359375,
+            "user_seconds": 1.242773,
+            "system_seconds": 0.033969,
+            "mib_per_second": 64.58294355614552
+          }
+        ],
+        "go": [
+          {
+            "seconds": 0.21285199999999982,
+            "peak_rss_mib": 10.359375,
+            "user_seconds": 0.19228099999999998,
+            "system_seconds": 0.022834999999999998,
+            "mib_per_second": 399.2306628981836
+          },
+          {
+            "seconds": 0.21399254199999973,
+            "peak_rss_mib": 10.328125,
+            "user_seconds": 0.194381,
+            "system_seconds": 0.023223,
+            "mib_per_second": 397.10283482311365
+          },
+          {
+            "seconds": 0.20993145899999988,
+            "peak_rss_mib": 10.0625,
+            "user_seconds": 0.191639,
+            "system_seconds": 0.025022,
+            "mib_per_second": 404.7847114672039
+          },
+          {
+            "seconds": 0.21093254199999834,
+            "peak_rss_mib": 10.46875,
+            "user_seconds": 0.190608,
+            "system_seconds": 0.024437,
+            "mib_per_second": 402.86360868492625
+          },
+          {
+            "seconds": 0.21299037499999862,
+            "peak_rss_mib": 10.40625,
+            "user_seconds": 0.19097899999999998,
+            "system_seconds": 0.021027999999999998,
+            "mib_per_second": 398.97129182107244
+          }
+        ]
+      },
+      "summary": {
+        "moonbit": {
+          "median_seconds": 1.3074672090000004,
+          "median_mib_per_second": 64.99363385503007,
+          "max_rss_mib": 2.375,
+          "median_cpu_seconds": 1.275324
+        },
+        "go": {
+          "median_seconds": 0.21285199999999982,
+          "median_mib_per_second": 399.2306628981836,
+          "max_rss_mib": 10.46875,
+          "median_cpu_seconds": 0.21511599999999997
+        }
+      }
+    },
+    {
+      "name": "text-100-dense",
+      "input": {
+        "total": 656000,
+        "errors": 131200,
+        "bytes": 89104890,
+        "sha256": "e42dcc26e9638874107cf303bdf69b3c8e43edf67d756d9d5485006e5b90cf3f"
+      },
+      "samples": {
+        "moonbit": [
+          {
+            "seconds": 1.4120265419999996,
+            "peak_rss_mib": 2.375,
+            "user_seconds": 1.341198,
+            "system_seconds": 0.03609,
+            "mib_per_second": 60.18091199535265
+          },
+          {
+            "seconds": 1.421157000000001,
+            "peak_rss_mib": 2.375,
+            "user_seconds": 1.345084,
+            "system_seconds": 0.037221,
+            "mib_per_second": 59.79426978103338
+          },
+          {
+            "seconds": 1.4145868749999977,
+            "peak_rss_mib": 2.375,
+            "user_seconds": 1.329446,
+            "system_seconds": 0.038842999999999996,
+            "mib_per_second": 60.07198749048498
+          },
+          {
+            "seconds": 1.450312125,
+            "peak_rss_mib": 2.375,
+            "user_seconds": 1.376016,
+            "system_seconds": 0.035549,
+            "mib_per_second": 58.59224617542524
+          },
+          {
+            "seconds": 1.4127688750000011,
+            "peak_rss_mib": 2.390625,
+            "user_seconds": 1.344643,
+            "system_seconds": 0.037367,
+            "mib_per_second": 60.14929020799954
+          }
+        ],
+        "go": [
+          {
+            "seconds": 0.3278888749999993,
+            "peak_rss_mib": 10.390625,
+            "user_seconds": 0.30471699999999996,
+            "system_seconds": 0.02855,
+            "mib_per_second": 259.16416059924046
+          },
+          {
+            "seconds": 0.33160337500000026,
+            "peak_rss_mib": 10.421875,
+            "user_seconds": 0.306321,
+            "system_seconds": 0.027215999999999997,
+            "mib_per_second": 256.2610982448657
+          },
+          {
+            "seconds": 0.33212658400000095,
+            "peak_rss_mib": 10.453125,
+            "user_seconds": 0.30694299999999997,
+            "system_seconds": 0.028499999999999998,
+            "mib_per_second": 255.85740242703324
+          },
+          {
+            "seconds": 0.32679758300000117,
+            "peak_rss_mib": 10.40625,
+            "user_seconds": 0.301674,
+            "system_seconds": 0.02724,
+            "mib_per_second": 260.0296008284853
+          },
+          {
+            "seconds": 0.32740937499999845,
+            "peak_rss_mib": 10.40625,
+            "user_seconds": 0.30155,
+            "system_seconds": 0.028731,
+            "mib_per_second": 259.54371361297916
+          }
+        ]
+      },
+      "summary": {
+        "moonbit": {
+          "median_seconds": 1.4145868749999977,
+          "median_mib_per_second": 60.07198749048498,
+          "max_rss_mib": 2.390625,
+          "median_cpu_seconds": 1.38201
+        },
+        "go": {
+          "median_seconds": 0.3278888749999993,
+          "median_mib_per_second": 259.16416059924046,
+          "max_rss_mib": 10.453125,
+          "median_cpu_seconds": 0.333267
+        }
+      }
+    },
+    {
+      "name": "jsonl-100-sparse",
+      "input": {
+        "total": 656000,
+        "errors": 656,
+        "bytes": 105504890,
+        "sha256": "6a4bd91aa6015fba48fe6d3b0e06e33e59df015c87ec291e184c9ebb8e217452"
+      },
+      "samples": {
+        "moonbit": [
+          {
+            "seconds": 1.8269587499999957,
+            "peak_rss_mib": 2.390625,
+            "user_seconds": 1.699112,
+            "system_seconds": 0.046862,
+            "mib_per_second": 55.073659352334495
+          },
+          {
+            "seconds": 1.7781568750000005,
+            "peak_rss_mib": 2.40625,
+            "user_seconds": 1.674806,
+            "system_seconds": 0.047522999999999996,
+            "mib_per_second": 56.58516706984392
+          },
+          {
+            "seconds": 1.919272707999994,
+            "peak_rss_mib": 2.203125,
+            "user_seconds": 1.73667,
+            "system_seconds": 0.056026,
+            "mib_per_second": 52.42470412300935
+          },
+          {
+            "seconds": 1.8259102080000034,
+            "peak_rss_mib": 2.390625,
+            "user_seconds": 1.6981979999999999,
+            "system_seconds": 0.049382999999999996,
+            "mib_per_second": 55.105285795229214
+          },
+          {
+            "seconds": 1.7970572080000053,
+            "peak_rss_mib": 2.40625,
+            "user_seconds": 1.6875259999999999,
+            "system_seconds": 0.048915,
+            "mib_per_second": 55.99003938235577
+          }
+        ],
+        "go": [
+          {
+            "seconds": 1.1656412090000003,
+            "peak_rss_mib": 10.59375,
+            "user_seconds": 1.095343,
+            "system_seconds": 0.06368,
+            "mib_per_second": 86.3192748089147
+          },
+          {
+            "seconds": 1.1212055830000054,
+            "peak_rss_mib": 10.65625,
+            "user_seconds": 1.056847,
+            "system_seconds": 0.06254699999999999,
+            "mib_per_second": 89.7402807958245
+          },
+          {
+            "seconds": 1.242583291999999,
+            "peak_rss_mib": 10.71875,
+            "user_seconds": 1.118461,
+            "system_seconds": 0.076181,
+            "mib_per_second": 80.97429322932396
+          },
+          {
+            "seconds": 1.224850042,
+            "peak_rss_mib": 10.65625,
+            "user_seconds": 1.113118,
+            "system_seconds": 0.069947,
+            "mib_per_second": 82.1466305246423
+          },
+          {
+            "seconds": 1.1537611250000026,
+            "peak_rss_mib": 11.046875,
+            "user_seconds": 1.09191,
+            "system_seconds": 0.06575199999999999,
+            "mib_per_second": 87.20808984465165
+          }
+        ]
+      },
+      "summary": {
+        "moonbit": {
+          "median_seconds": 1.8259102080000034,
+          "median_mib_per_second": 55.105285795229214,
+          "max_rss_mib": 2.40625,
+          "median_cpu_seconds": 1.745974
+        },
+        "go": {
+          "median_seconds": 1.1656412090000003,
+          "median_mib_per_second": 86.3192748089147,
+          "max_rss_mib": 11.046875,
+          "median_cpu_seconds": 1.159023
+        }
+      }
+    },
+    {
+      "name": "jsonl-100-dense",
+      "input": {
+        "total": 656000,
+        "errors": 131200,
+        "bytes": 105504890,
+        "sha256": "c8971ba1d905f9304538639ff38218061547ea07e73c18ad9c40c9d5c0a8c325"
+      },
+      "samples": {
+        "moonbit": [
+          {
+            "seconds": 1.9683215840000017,
+            "peak_rss_mib": 2.125,
+            "user_seconds": 1.845454,
+            "system_seconds": 0.049722999999999996,
+            "mib_per_second": 51.11832571778907
+          },
+          {
+            "seconds": 2.045978790999996,
+            "peak_rss_mib": 2.40625,
+            "user_seconds": 1.825207,
+            "system_seconds": 0.054119,
+            "mib_per_second": 49.178077647172834
+          },
+          {
+            "seconds": 1.937242458,
+            "peak_rss_mib": 2.421875,
+            "user_seconds": 1.829583,
+            "system_seconds": 0.047929,
+            "mib_per_second": 51.93841557248514
+          },
+          {
+            "seconds": 1.9359031659999957,
+            "peak_rss_mib": 2.421875,
+            "user_seconds": 1.82684,
+            "system_seconds": 0.050202,
+            "mib_per_second": 51.97434748565664
+          },
+          {
+            "seconds": 2.1271665419999977,
+            "peak_rss_mib": 2.09375,
+            "user_seconds": 1.834702,
+            "system_seconds": 0.053326,
+            "mib_per_second": 47.3010936669136
+          }
+        ],
+        "go": [
+          {
+            "seconds": 1.3088429590000032,
+            "peak_rss_mib": 10.71875,
+            "user_seconds": 1.216212,
+            "system_seconds": 0.080246,
+            "mib_per_second": 76.8750010506542
+          },
+          {
+            "seconds": 1.1981357089999989,
+            "peak_rss_mib": 10.46875,
+            "user_seconds": 1.141181,
+            "system_seconds": 0.072144,
+            "mib_per_second": 83.97821973960272
+          },
+          {
+            "seconds": 1.3200293750000043,
+            "peak_rss_mib": 10.71875,
+            "user_seconds": 1.224018,
+            "system_seconds": 0.071501,
+            "mib_per_second": 76.22353392572516
+          },
+          {
+            "seconds": 1.238474666000002,
+            "peak_rss_mib": 11.109375,
+            "user_seconds": 1.176865,
+            "system_seconds": 0.07296899999999999,
+            "mib_per_second": 81.24292455108359
+          },
+          {
+            "seconds": 1.2058541249999948,
+            "peak_rss_mib": 10.65625,
+            "user_seconds": 1.145412,
+            "system_seconds": 0.072146,
+            "mib_per_second": 83.44069300112652
+          }
+        ]
+      },
+      "summary": {
+        "moonbit": {
+          "median_seconds": 1.9683215840000017,
+          "median_mib_per_second": 51.11832571778907,
+          "max_rss_mib": 2.421875,
+          "median_cpu_seconds": 1.879326
+        },
+        "go": {
+          "median_seconds": 1.238474666000002,
+          "median_mib_per_second": 81.24292455108359,
+          "max_rss_mib": 11.109375,
+          "median_cpu_seconds": 1.2498340000000001
+        }
+      }
+    }
+  ]
+}
