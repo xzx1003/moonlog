@@ -5,10 +5,7 @@ fn temp_dir() -> String {
 
 ///|
 fn ensure_temp_dir() -> Unit raise {
-  let tmp = temp_dir()
-  if !@io.path_exists(tmp) {
-    ignore(@io.write_report(tmp + "/.keep", "") catch { _ => () })
-  }
+  @io.ensure_directory(temp_dir())
 }
 
 ///|

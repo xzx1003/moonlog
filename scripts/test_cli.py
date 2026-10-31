@@ -497,7 +497,6 @@ class CLI(unittest.TestCase):
         self.assertIn('invalid UTF-8', self.analyze(ok=False).stderr)
         self.assertFalse(self.report.exists())
 
-    @skip_on_windows("symlink creation requires special privileges on Windows")
     def test_reports_and_input_aliases_are_not_overwritten(self):
         self.source.write_text('2026-10-28 08:00:00 [INFO] ready\n')
         original = self.source.read_bytes()
@@ -506,9 +505,13 @@ class CLI(unittest.TestCase):
         self.analyze(ok=False)
         self.assertEqual(self.report.read_text(), 'KEEP')
         self.report.unlink()
-        self.report.symlink_to(self.source)
-        self.analyze(ok=False)
-        self.report.unlink()
+        try:
+            self.report.symlink_to(self.source)
+        except OSError:
+            pass
+        else:
+            self.analyze(ok=False)
+            self.report.unlink()
         os.link(self.source, self.report)
         self.analyze(ok=False)
         self.assertEqual(self.source.read_bytes(), original)
@@ -673,7 +676,6 @@ class CLI(unittest.TestCase):
         for window in doc['context_windows']:
             self.assertIn(window['source'], [str(first), str(second)])
 
-    @skip_on_windows("symlink creation requires special privileges on Windows")
     def test_multifile_rejects_duplicate_and_aliased_inputs(self):
         self.source.write_text('2026-10-28 08:00:00 [INFO] ready\n')
         # Duplicate path.
@@ -687,9 +689,13 @@ class CLI(unittest.TestCase):
         self.assertFalse(self.report.exists())
         # Symbolic-link alias.
         soft = self.root / 'soft.log'
-        soft.symlink_to(self.source)
-        self.run_cli('analyze', self.source, soft, '--report', self.report, ok=False)
-        self.assertFalse(self.report.exists())
+        try:
+            soft.symlink_to(self.source)
+        except OSError:
+            pass
+        else:
+            self.run_cli('analyze', self.source, soft, '--report', self.report, ok=False)
+            self.assertFalse(self.report.exists())
 
     def test_sampling_flag_validation(self):
         self.source.write_text('2026-10-28 08:00:00 [INFO] ready\n')

@@ -9,8 +9,14 @@ $ErrorActionPreference = "Stop"
 
 # Get version from moon.mod if not provided
 if (-not $Version) {
-    $moonMod = Get-Content "moon.mod" | ConvertFrom-Json
-    $Version = $moonMod.version
+    $versionLine = Get-Content "moon.mod" | Where-Object {
+        $_ -match '^\s*version\s*=\s*"([^"]+)"'
+    } | Select-Object -First 1
+    if (-not $versionLine -or $versionLine -notmatch '^\s*version\s*=\s*"([^"]+)"') {
+        Write-Error "Unable to read version from moon.mod"
+        exit 1
+    }
+    $Version = $Matches[1]
 }
 
 # Determine platform
@@ -21,7 +27,7 @@ $packageName = "moonlog-v$Version-$platform"
 Write-Host "Packaging $packageName..."
 
 # Check if binary exists
-$binaryPath = "target\native\release\build\cmd\main\moonlog.exe"
+$binaryPath = "_build\native\release\build\cmd\main\main.exe"
 if (-not (Test-Path $binaryPath)) {
     Write-Error "Binary not found at $binaryPath. Run build.ps1 first."
     exit 1
@@ -36,7 +42,7 @@ New-Item -ItemType Directory -Path $packageDir -Force | Out-Null
 
 # Copy files
 Write-Host "Copying files..."
-Copy-Item $binaryPath $packageDir
+Copy-Item $binaryPath (Join-Path $packageDir "moonlog.exe")
 Copy-Item "LICENSE" $packageDir -ErrorAction SilentlyContinue
 Copy-Item "README.md" $packageDir -ErrorAction SilentlyContinue
 

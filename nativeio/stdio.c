@@ -163,6 +163,32 @@ MOONBIT_FFI_EXPORT moonbit_bytes_t moonlog_stat(moonbit_bytes_t path) {
   return out;
 }
 
+MOONBIT_FFI_EXPORT int moonlog_make_directory(moonbit_bytes_t path) {
+  wchar_t *wpath = utf8_to_wide((const char *)path);
+  if (!wpath) {
+    errno = EINVAL;
+    return -1;
+  }
+  if (CreateDirectoryW(wpath, NULL)) {
+    free(wpath);
+    return 0;
+  }
+  DWORD error = GetLastError();
+  if (error == ERROR_ALREADY_EXISTS) {
+    DWORD attributes = GetFileAttributesW(wpath);
+    free(wpath);
+    if (attributes != INVALID_FILE_ATTRIBUTES &&
+        (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
+      return 0;
+    }
+    errno = EEXIST;
+    return -1;
+  }
+  free(wpath);
+  errno = EIO;
+  return -1;
+}
+
 #else
 /* POSIX implementation */
 
@@ -206,6 +232,17 @@ MOONBIT_FFI_EXPORT moonbit_bytes_t moonlog_stat(moonbit_bytes_t path) {
   moonbit_bytes_t out = moonbit_make_bytes(n, 0);
   memcpy(out, buf, (size_t)n);
   return out;
+}
+
+
+MOONBIT_FFI_EXPORT int moonlog_make_directory(moonbit_bytes_t path) {
+  struct stat st;
+  if (stat((const char *)path, &st) == 0) {
+    if (S_ISDIR(st.st_mode)) return 0;
+    errno = EEXIST;
+    return -1;
+  }
+  return mkdir((const char *)path, 0700);
 }
 
 #endif

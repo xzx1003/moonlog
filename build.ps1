@@ -1,5 +1,5 @@
 # Windows build script for moonlog
-# Auto-detects MSVC using vswhere, sets ASCII TEMP path, builds native target
+# Auto-detects MSVC using vswhere, sets ASCII TEMP path, builds a release native target
 
 $ErrorActionPreference = "Stop"
 
@@ -67,14 +67,14 @@ try {
 
 # Build
 Write-Host "`nBuilding moonlog (native target)..."
-& moon build --target native
+& moon build --target native --release
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Build failed"
     exit $LASTEXITCODE
 }
 
 Write-Host "`nBuild successful!"
-Write-Host "Binary location: target\native\release\build\cmd\main\moonlog.exe"
+Write-Host "Binary location: _build\native\release\build\cmd\main\main.exe"
 
 # Optionally run tests
 if ($args -contains "--test") {

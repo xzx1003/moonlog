@@ -45,4 +45,4 @@ jobs:
           $env:TMP = "C:\Temp"
           $env:PYTHONUTF8 = "1"
           if (-not (Test-Path "C:\Temp")) { New-Item -ItemType Directory -Path "C:\Temp" -Force }
-          python -X utf8 scripts/test_cli.py target/native/release/build/cmd/main/moonlog.exe
+          python -X utf8 scripts/test_cli.py _build/native/release/build/cmd/main/main.exe
