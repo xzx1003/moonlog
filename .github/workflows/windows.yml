@@ -1,0 +1,80 @@
+name: Windows tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install MoonBit toolchain
+        shell: pwsh
+        run: |
+          Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+          irm https://cli.moonbitlang.cn/install/powershell.ps1 | iex
+          echo "$env:USERPROFILE\.moon\bin" >> $env:GITHUB_PATH
+
+      - name: Verify MoonBit
+        shell: bash
+        run: moon version --all
+
+      - name: Build
+        shell: pwsh
+        run: .\build.ps1
+
+      - name: Run MoonBit core tests
+        shell: bash
+        run: |
+          export PATH="$HOME/.moon/bin:$PATH"
+          export TEMP=/c/temp
+          export TMP=/c/temp
+          mkdir -p /c/temp
+          moon test --target native
+
+      - name: Run CLI integration tests
+        shell: pwsh
+        run: |
+          $env:PATH = "$env:USERPROFILE\.moon\bin;$env:PATH"
+          $env:TEMP = "C:\Temp"
+          $env:TMP = "C:\Temp"
+          $env:PYTHONUTF8 = "1"
+          if (-not (Test-Path "C:\Temp")) { New-Item -ItemType Directory -Path "C:\Temp" -Force }
+          python -X utf8 scripts/test_cli.py _build/native/release/build/cmd/main/main.exe
+
+      - name: Package Windows release
+        shell: pwsh
+        run: .\package.ps1
+
+      - name: Verify Windows package
+        shell: pwsh
+        run: |
+          $archive = Get-ChildItem "dist\*.zip" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if (-not $archive) { throw "Windows package was not created" }
+          $checksum = $archive.FullName + ".sha256"
+          if (-not (Test-Path $checksum)) { throw "Package checksum is missing" }
+          $expected = ((Get-Content -LiteralPath $checksum -Raw).Trim() -split '\s+')[0]
+          if ($expected -notmatch '^[0-9a-fA-F]{64}$') { throw "Invalid SHA-256 checksum" }
+          $actual = (Get-FileHash -LiteralPath $archive.FullName -Algorithm SHA256).Hash
+          if ($actual -ine $expected) { throw "Package SHA-256 mismatch" }
+          $extract = Join-Path $env:RUNNER_TEMP "moonlog-package"
+          if (Test-Path $extract) { Remove-Item -Recurse -Force $extract }
+          Expand-Archive -LiteralPath $archive.FullName -DestinationPath $extract
+          $binary = Join-Path $extract "moonlog.exe"
+          if (-not (Test-Path $binary)) { throw "Package does not contain moonlog.exe" }
+          & $binary --version
+          if ($LASTEXITCODE -ne 0) { throw "Packaged moonlog.exe failed --version" }
+          $report = Join-Path $extract "smoke-report.md"
+          & $binary analyze (Join-Path $extract "fixtures\incident.log") --report $report
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path $report)) { throw "Packaged moonlog.exe failed smoke analysis" }
+          $configuredReport = Join-Path $extract "configured-report.json"
+          & $binary analyze (Join-Path $extract "fixtures\incident.log") --config (Join-Path $extract "config\moonlog.example.json") --format json --report $configuredReport
+          if ($LASTEXITCODE -ne 0) { throw "Packaged config smoke analysis failed" }
+          $analysis = Get-Content -LiteralPath $configuredReport -Raw | ConvertFrom-Json
+          if ($analysis.summary.errors -ne 4 -or $analysis.summary.spike_count -ne 1) { throw "Packaged analysis counts are incorrect" }
+          if ($analysis.config.bucket_minutes -ne 5 -or $analysis.config.baseline_buckets -ne 6) { throw "Packaged config was not applied correctly" }

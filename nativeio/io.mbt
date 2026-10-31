@@ -22,6 +22,10 @@ extern "C" fn write_chunk(file : Handle, bytes : Bytes, size : Int32) -> Int32 =
 extern "C" fn stat_file(path : Bytes) -> Bytes = "moonlog_stat"
 
 ///|
+#borrow(path)
+extern "C" fn make_directory_ffi(path : Bytes) -> Int32 = "moonlog_make_directory"
+
+///|
 #borrow(a, b)
 extern "C" fn same_file_ffi(a : Bytes, b : Bytes) -> Int32 = "moonlog_same_file"
 
@@ -67,6 +71,13 @@ pub fn same_file(a : String, b : String) -> Bool raise {
 pub fn path_exists(path : String) -> Bool raise {
   let identity = stat_file(c_path(path))
   identity.length() != 0
+}
+
+///|
+pub fn ensure_directory(path : String) -> Unit raise {
+  if make_directory_ffi(c_path(path)) != 0 {
+    io_error("cannot create directory", path)
+  }
 }
 
 ///|

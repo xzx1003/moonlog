@@ -10,7 +10,7 @@ MoonLog 是一个使用 MoonBit 编写的命令行工具，用于分析应用日
 
 ## 快速开始
 
-构建环境需要 MoonBit 工具链、C 编译器和 Make。本项目当前使用 `moon 0.1.20261023`，已在 macOS arm64 上完成构建与测试。
+构建环境需要 MoonBit 工具链和 C 编译器；macOS/Linux 使用 Make，Windows 使用下文的 PowerShell 脚本。本项目当前使用 `moon 0.1.20261023`，已在 macOS arm64 本机及 Linux、Windows CI 上验证。
 
 ```bash
 make build
@@ -473,7 +473,7 @@ MoonLog 使用多遍扫描完成分析，避免将全部原始日志长期保存
 
 `nativeio/stdio.c` 只负责操作系统层面的字节 I/O，包括文件打开、读取、写入、关闭及错误处理。解析、行切分、过滤、统计和报告逻辑均由 MoonBit 实现。
 
-当前文件检查使用 POSIX 接口，支持目标为 macOS 和 Linux，尚未适配 Windows。
+文件 I/O 层分别适配 macOS/Linux 的 POSIX 接口和 Windows 原生接口；Windows 使用 UTF-16 宽字符路径 API，接收 UTF-8 编码的路径。
 
 ## 测试与性能
 
@@ -636,6 +636,39 @@ moonlog --version
 
 正式发布时，将已通过测试的两个归档及其校验文件附到相应版本的 GitHub Release。
 SHA-256 用于检查下载内容是否一致，不替代发布者签名。当前未创建版本标签或正式 Release。
+
+### Windows 构建
+
+Windows 原生构建需要 Visual Studio 2022（Community/Professional/Enterprise 或 Build Tools）并安装 C++ 工作负载。MoonBit 运行时目前仅支持 MSVC，不支持 MinGW/GCC。
+
+使用 PowerShell 构建：
+
+```powershell
+.\build.ps1
+# 或带测试
+.\build.ps1 --test
+```
+
+构建脚本通过 `vswhere` 查找 MSVC，设置 ASCII 临时目录，并编译原生 release 目标。生成的二进制位于 `_build\native\release\build\cmd\main\main.exe`，打包时重命名为 `moonlog.exe`。
+
+Windows 打包：
+
+```powershell
+.\package.ps1
+```
+
+生成 `dist\moonlog-v<version>-windows-x86_64.zip`，包含 `moonlog.exe`、`LICENSE`、`README.md`、`config/` 和 `fixtures/`。
+
+验证校验和：
+
+```powershell
+Get-FileHash dist\moonlog-v0.1.0-windows-x86_64.zip -Algorithm SHA256
+```
+
+**已知限制**：
+- Windows 特殊文件名相关的 2 项测试会跳过；符号链接创建受权限限制时会明确记录对应检查未执行，重复路径、硬链接和已有报告保护仍会测试。
+- 中文路径已正确适配（使用 UTF-16 宽字符 API）
+- CI 在 `windows-latest` 上运行，详见 `.github/workflows/windows.yml`
 
 ## Benchmark
 

@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Black-box acceptance tests against the real native executable; stdlib only."""
 from pathlib import Path
 from decimal import Decimal
 import json
 import os
+import platform
 import re
 import subprocess
 import sys
@@ -12,6 +14,19 @@ import unittest
 
 BINARY = Path(sys.argv.pop(1) if len(sys.argv) > 1 else 'bin/moonlog').resolve()
 ROOT = Path(__file__).resolve().parent.parent
+
+def is_windows():
+    return platform.system() == 'Windows'
+
+def skip_on_windows(reason):
+    """Decorator to skip entire test methods on Windows."""
+    def decorator(test_func):
+        def wrapper(self, *args, **kwargs):
+            if is_windows():
+                self.skipTest(reason)
+            return test_func(self, *args, **kwargs)
+        return wrapper
+    return decorator
 
 RATIO_LINE = re.compile(
     r'^Log error ratio \(all observed lines\): (\S+) \((\d+)/(\d+)\)\.$')
@@ -490,9 +505,13 @@ class CLI(unittest.TestCase):
         self.analyze(ok=False)
         self.assertEqual(self.report.read_text(), 'KEEP')
         self.report.unlink()
-        self.report.symlink_to(self.source)
-        self.analyze(ok=False)
-        self.report.unlink()
+        try:
+            self.report.symlink_to(self.source)
+        except OSError as error:
+            print(f"SKIP symbolic-link report alias check: {error}", file=sys.stderr)
+        else:
+            self.analyze(ok=False)
+            self.report.unlink()
         os.link(self.source, self.report)
         self.analyze(ok=False)
         self.assertEqual(self.source.read_bytes(), original)
@@ -670,9 +689,13 @@ class CLI(unittest.TestCase):
         self.assertFalse(self.report.exists())
         # Symbolic-link alias.
         soft = self.root / 'soft.log'
-        soft.symlink_to(self.source)
-        self.run_cli('analyze', self.source, soft, '--report', self.report, ok=False)
-        self.assertFalse(self.report.exists())
+        try:
+            soft.symlink_to(self.source)
+        except OSError as error:
+            print(f"SKIP symbolic-link input alias check: {error}", file=sys.stderr)
+        else:
+            self.run_cli('analyze', self.source, soft, '--report', self.report, ok=False)
+            self.assertFalse(self.report.exists())
 
     def test_sampling_flag_validation(self):
         self.source.write_text('2026-10-28 08:00:00 [INFO] ready\n')
@@ -1605,6 +1628,7 @@ class CLI(unittest.TestCase):
         self.assertTrue(any('\u001b' in text and '\u0007' in text for text in texts), texts)
         self.assertFalse(any('\\x1b' in text for text in texts), texts)
 
+    @skip_on_windows("control characters not allowed in Windows filenames")
     def test_terminal_summary_escapes_source_path(self):
         weird = self.root / 'in\u001b[31mput.log'
         weird.write_text('2026-10-28 08:00:00 [INFO] ready\n', encoding='utf8')
@@ -1620,6 +1644,9 @@ class CLI(unittest.TestCase):
         result = self.analyze('--format', 'js\u001bon', ok=False)
         self.assertIn('unknown format: js\\x1bon', result.stderr)
         self.assertNotIn('\u001b', result.stderr)
+
+    @skip_on_windows("control characters not allowed in Windows filenames")
+    def test_missing_input_diagnostics_escape_source_path(self):
         missing = self.root / 'in\u001bput.log'
         result = self.run_cli('analyze', missing, '--report', self.report, ok=False)
         self.assertNotIn('\u001b', result.stderr)
