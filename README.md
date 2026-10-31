@@ -637,6 +637,39 @@ moonlog --version
 正式发布时，将已通过测试的两个归档及其校验文件附到相应版本的 GitHub Release。
 SHA-256 用于检查下载内容是否一致，不替代发布者签名。当前未创建版本标签或正式 Release。
 
+### Windows 构建
+
+Windows 原生构建需要 Visual Studio 2022（Community/Professional/Enterprise 或 Build Tools）并安装 C++ 工作负载。MoonBit 运行时目前仅支持 MSVC，不支持 MinGW/GCC。
+
+使用 PowerShell 构建：
+
+```powershell
+.\build.ps1
+# 或带测试
+.\build.ps1 --test
+```
+
+构建脚本会自动通过 `vswhere` 查找 MSVC，设置 ASCII 临时目录（避免中文路径问题），并编译原生目标。生成的二进制文件位于 `target\native\release\build\cmd\main\moonlog.exe`。
+
+Windows 打包：
+
+```powershell
+.\package.ps1
+```
+
+生成 `dist\moonlog-v<version>-windows-x86_64.zip`，包含 `moonlog.exe`、`LICENSE`、`README.md`、`config/` 和 `fixtures/`。
+
+验证校验和：
+
+```powershell
+Get-FileHash dist\moonlog-v0.1.0-windows-x86_64.zip -Algorithm SHA256
+```
+
+**已知限制**：
+- Windows 符号链接需要管理员权限或开发者模式，3 个测试会自动跳过
+- 中文路径已正确适配（使用 UTF-16 宽字符 API）
+- CI 在 `windows-latest` 上运行，详见 `.github/workflows/windows.yml`
+
 ## Benchmark
 
 ### MoonBit 与 Go 对照

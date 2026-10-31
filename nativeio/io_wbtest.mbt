@@ -1,7 +1,23 @@
 ///|
+// Cross-platform temporary directory: use .tmp in current directory
+fn temp_dir() -> String {
+  ".tmp"
+}
+
+///|
+// Ensure temp directory exists
+fn ensure_temp_dir() -> Unit raise {
+  let tmp = temp_dir()
+  if !path_exists(tmp) {
+    ignore(write_report(tmp + "/.keep", "") catch { _ => () })
+  }
+}
+
+///|
 // write_report never overwrites, so fixture paths are content-addressed and
 // may be reused after a previous test run.
 fn prepare_fixture(path : String, content : String) -> Unit raise {
+  ensure_temp_dir()
   write_report(path, content) catch {
     _ => ()
   }
@@ -22,7 +38,7 @@ fn acceptance_chunked_log() -> String {
 
 ///|
 test "each_line observes raw chunks before decoding lines across the 64 KiB boundary" {
-  let path = "/tmp/moonlog-each-line-a31079f2.log"
+  let path = ".tmp/moonlog-each-line-a31079f2.log"
   let content = acceptance_chunked_log()
   prepare_fixture(path, content)
   let lines : Array[String] = []
@@ -50,7 +66,7 @@ test "each_line observes raw chunks before decoding lines across the 64 KiB boun
 
 ///|
 test "each_line observes a failing chunk before rejecting an overlong line" {
-  let path = "/tmp/moonlog-each-line-a6095d81.log"
+  let path = ".tmp/moonlog-each-line-a6095d81.log"
   let content = "abc\n" + "x".repeat(65536) + "y\n"
   prepare_fixture(path, content)
   let lines : Array[String] = []

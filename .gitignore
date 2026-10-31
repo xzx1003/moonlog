@@ -5,6 +5,8 @@ target
 .mooncakes/
 .moonagent/
 /bin/
+.tmp/
+/unpacked/
 
 # Local analysis output; curated examples live in docs/.
 /incident.md

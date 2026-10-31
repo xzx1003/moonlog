@@ -1,0 +1,48 @@
+name: Windows tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install MoonBit toolchain
+        shell: pwsh
+        run: |
+          Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+          irm https://cli.moonbitlang.cn/install/powershell.ps1 | iex
+          echo "$env:USERPROFILE\.moon\bin" >> $env:GITHUB_PATH
+
+      - name: Verify MoonBit
+        shell: bash
+        run: moon version --all
+
+      - name: Build
+        shell: pwsh
+        run: .\build.ps1
+
+      - name: Run MoonBit core tests
+        shell: bash
+        run: |
+          export PATH="$HOME/.moon/bin:$PATH"
+          export TEMP=/c/temp
+          export TMP=/c/temp
+          mkdir -p /c/temp
+          moon test --target native
+
+      - name: Run CLI integration tests
+        shell: pwsh
+        run: |
+          $env:PATH = "$env:USERPROFILE\.moon\bin;$env:PATH"
+          $env:TEMP = "C:\Temp"
+          $env:TMP = "C:\Temp"
+          $env:PYTHONUTF8 = "1"
+          if (-not (Test-Path "C:\Temp")) { New-Item -ItemType Directory -Path "C:\Temp" -Force }
+          python -X utf8 scripts/test_cli.py target/native/release/build/cmd/main/moonlog.exe

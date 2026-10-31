@@ -1,5 +1,19 @@
 ///|
+fn temp_dir() -> String {
+  ".tmp"
+}
+
+///|
+fn ensure_temp_dir() -> Unit raise {
+  let tmp = temp_dir()
+  if !@io.path_exists(tmp) {
+    ignore(@io.write_report(tmp + "/.keep", "") catch { _ => () })
+  }
+}
+
+///|
 fn prepare_fixture(path : String, content : String) -> Unit raise {
+  ensure_temp_dir()
   @io.write_report(path, content) catch {
     _ => ()
   }
@@ -12,8 +26,8 @@ fn prepare_fixture(path : String, content : String) -> Unit raise {
 // Same decoded lines with CRLF/no final newline and LF/trailing newline.
 // Expected digests come from Python hashlib over the raw file bytes.
 test "scan_file keeps per-file digests and verify_snapshots compares each file" {
-  let a = "/tmp/moonlog-scan-36c2dbc5.log"
-  let b = "/tmp/moonlog-scan-8bab7289.log"
+  let a = ".tmp/moonlog-scan-36c2dbc5.log"
+  let b = ".tmp/moonlog-scan-8bab7289.log"
   prepare_fixture(
     a, "2026-10-28 08:00:00 [INFO] ok\r\n2026-10-28 08:05:00 [ERROR] boom",
   )

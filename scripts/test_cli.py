@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Black-box acceptance tests against the real native executable; stdlib only."""
 from pathlib import Path
 from decimal import Decimal
 import json
 import os
+import platform
 import re
 import subprocess
 import sys
@@ -12,6 +14,19 @@ import unittest
 
 BINARY = Path(sys.argv.pop(1) if len(sys.argv) > 1 else 'bin/moonlog').resolve()
 ROOT = Path(__file__).resolve().parent.parent
+
+def is_windows():
+    return platform.system() == 'Windows'
+
+def skip_on_windows(reason):
+    """Decorator to skip entire test methods on Windows."""
+    def decorator(test_func):
+        def wrapper(self, *args, **kwargs):
+            if is_windows():
+                self.skipTest(reason)
+            return test_func(self, *args, **kwargs)
+        return wrapper
+    return decorator
 
 RATIO_LINE = re.compile(
     r'^Log error ratio \(all observed lines\): (\S+) \((\d+)/(\d+)\)\.$')
@@ -482,6 +497,7 @@ class CLI(unittest.TestCase):
         self.assertIn('invalid UTF-8', self.analyze(ok=False).stderr)
         self.assertFalse(self.report.exists())
 
+    @skip_on_windows("symlink creation requires special privileges on Windows")
     def test_reports_and_input_aliases_are_not_overwritten(self):
         self.source.write_text('2026-10-28 08:00:00 [INFO] ready\n')
         original = self.source.read_bytes()
@@ -657,6 +673,7 @@ class CLI(unittest.TestCase):
         for window in doc['context_windows']:
             self.assertIn(window['source'], [str(first), str(second)])
 
+    @skip_on_windows("symlink creation requires special privileges on Windows")
     def test_multifile_rejects_duplicate_and_aliased_inputs(self):
         self.source.write_text('2026-10-28 08:00:00 [INFO] ready\n')
         # Duplicate path.
@@ -1605,6 +1622,7 @@ class CLI(unittest.TestCase):
         self.assertTrue(any('\u001b' in text and '\u0007' in text for text in texts), texts)
         self.assertFalse(any('\\x1b' in text for text in texts), texts)
 
+    @skip_on_windows("control characters not allowed in Windows filenames")
     def test_terminal_summary_escapes_source_path(self):
         weird = self.root / 'in\u001b[31mput.log'
         weird.write_text('2026-10-28 08:00:00 [INFO] ready\n', encoding='utf8')
@@ -1615,6 +1633,7 @@ class CLI(unittest.TestCase):
         self.assertNotIn('\u001b', result.stdout)
         self.assertTrue(report.exists())
 
+    @skip_on_windows("control characters not allowed in Windows filenames")
     def test_diagnostics_never_emit_raw_control_characters(self):
         self.source.write_text('2026-10-28 08:00:00 [INFO] ready\n', encoding='utf8')
         result = self.analyze('--format', 'js\u001bon', ok=False)
