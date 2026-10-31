@@ -46,3 +46,23 @@ jobs:
           $env:PYTHONUTF8 = "1"
           if (-not (Test-Path "C:\Temp")) { New-Item -ItemType Directory -Path "C:\Temp" -Force }
           python -X utf8 scripts/test_cli.py _build/native/release/build/cmd/main/main.exe
+
+      - name: Package Windows release
+        shell: pwsh
+        run: .\package.ps1
+
+      - name: Verify Windows package
+        shell: pwsh
+        run: |
+          $archive = Get-ChildItem "dist\*.zip" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if (-not $archive) { throw "Windows package was not created" }
+          $extract = Join-Path $env:RUNNER_TEMP "moonlog-package"
+          if (Test-Path $extract) { Remove-Item -Recurse -Force $extract }
+          Expand-Archive -LiteralPath $archive.FullName -DestinationPath $extract
+          $binary = Join-Path $extract "moonlog.exe"
+          if (-not (Test-Path $binary)) { throw "Package does not contain moonlog.exe" }
+          & $binary --version
+          if ($LASTEXITCODE -ne 0) { throw "Packaged moonlog.exe failed --version" }
+          $report = Join-Path $extract "smoke-report.md"
+          & $binary analyze (Join-Path $extract "fixtures\incident.log") --report $report
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path $report)) { throw "Packaged moonlog.exe failed smoke analysis" }

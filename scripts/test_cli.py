@@ -507,8 +507,8 @@ class CLI(unittest.TestCase):
         self.report.unlink()
         try:
             self.report.symlink_to(self.source)
-        except OSError:
-            pass
+        except OSError as error:
+            print(f"SKIP symbolic-link report alias check: {error}", file=sys.stderr)
         else:
             self.analyze(ok=False)
             self.report.unlink()
@@ -691,8 +691,8 @@ class CLI(unittest.TestCase):
         soft = self.root / 'soft.log'
         try:
             soft.symlink_to(self.source)
-        except OSError:
-            pass
+        except OSError as error:
+            print(f"SKIP symbolic-link input alias check: {error}", file=sys.stderr)
         else:
             self.run_cli('analyze', self.source, soft, '--report', self.report, ok=False)
             self.assertFalse(self.report.exists())
@@ -1639,12 +1639,14 @@ class CLI(unittest.TestCase):
         self.assertNotIn('\u001b', result.stdout)
         self.assertTrue(report.exists())
 
-    @skip_on_windows("control characters not allowed in Windows filenames")
     def test_diagnostics_never_emit_raw_control_characters(self):
         self.source.write_text('2026-10-28 08:00:00 [INFO] ready\n', encoding='utf8')
         result = self.analyze('--format', 'js\u001bon', ok=False)
         self.assertIn('unknown format: js\\x1bon', result.stderr)
         self.assertNotIn('\u001b', result.stderr)
+
+    @skip_on_windows("control characters not allowed in Windows filenames")
+    def test_missing_input_diagnostics_escape_source_path(self):
         missing = self.root / 'in\u001bput.log'
         result = self.run_cli('analyze', missing, '--report', self.report, ok=False)
         self.assertNotIn('\u001b', result.stderr)
