@@ -17,3 +17,9 @@ jobs:
       - run: make check
       - run: make test
       - run: make integration
+      - name: Evaluation scoring tests
+        run: python3 -m unittest discover -s evaluation -p 'test_*.py'
+      - name: Build detector evaluation adapter
+        run: moon build evaluation/adapter --target native --release
+      - name: Baseline pollution production-reference check
+        run: python3 evaluation/pollution.py --output "${{ runner.temp }}/moonlog-pollution.json"

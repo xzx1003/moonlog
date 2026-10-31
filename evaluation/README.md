@@ -33,3 +33,5 @@ python3 evaluation/run.py --output /tmp/moonlog-evaluation.json
 结果入口：`results.synthetic-v1.json`。这是一套初步算法验收，不替代公开人工标注生产事故数据集。后续扩大数据集必须冻结v1记录，新协议另存版本，不改标签迎合结果。
 
 连续真实事故的输入契约和固定默认参数验收命令见 [REAL-DATA.md](REAL-DATA.md)。入口已实现，但尚无独立标注的生产事故样本，因此没有真实故障准确率成绩。
+
+基线污染策略对照与复现见 [POLLUTION.md](POLLUTION.md)，原始轨迹见 [results.pollution-v1.json](results.pollution-v1.json)。EWMA冻结更新只在评测中使用，生产默认未改变；持续异常检出与健康水平变化误报之间存在权衡。

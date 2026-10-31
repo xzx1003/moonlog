@@ -7,7 +7,7 @@ fn main raise {
   }
   let detector = match args[1] {
     "moving-average" => @engine.MovingAverage
-    "ewma" => @engine.Ewma
+    "ewma" | "ewma-freeze" => @engine.Ewma
     "mad" => @engine.Mad
     _ => abort("unknown algorithm")
   }
@@ -33,6 +33,26 @@ fn main raise {
       total: errors.to_int64(),
       errors: errors.to_int64(),
     })
+  }
+  if args[1] == "ewma-freeze" {
+    let mut baseline = 0.0
+    for i in 0..<n.min(buckets.length()) {
+      baseline += buckets[i].errors.to_double() / n.to_double()
+    }
+    let rows : Array[Json] = []
+    for i in n..<buckets.length() {
+      let value = buckets[i].errors.to_double()
+      let threshold = baseline * multiplier.to_double()
+      let hit = buckets[i].errors >= minimum.to_int64() && value > threshold
+      rows.push(
+        Json::array([Json(i), Json(baseline), Json(threshold), Json(hit)]),
+      )
+      if !hit {
+        baseline = parameter * value + (1.0 - parameter) * baseline
+      }
+    }
+    println(Json::array(rows).stringify())
+    return
   }
   let spikes = @engine.detect_spikes(buckets, config)
   println(
