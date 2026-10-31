@@ -669,3 +669,7 @@ SHA-256 用于检查下载内容是否一致，不替代发布者签名。当前
 `validation/` 使用 Loghub 固定版本中的 Apache、OpenStack、BGL 三类公开研究样本，保留行序并做有限标识符替换，独立核对行数、错误计数、时间桶和尖峰结果。摘要与来源见 [validation/loghub-results.md](validation/loghub-results.md)，结构化证据见 [validation/loghub-results.json](validation/loghub-results.json)。原始和归一化日志在本地 `validation/data/`，不会提交。
 
 这组数据验证了不同业务日志的适配边界和报告可读性，但不是连续生产事故记录，也没有已知故障起止。因此不能据此宣称准确率、召回率或根因识别能力；后续仍需要带时间线的脱敏业务样本做误报、漏报验收。
+
+## 合成异常评测
+
+三种检测算法的同数据集比较、调参集/测试集划分、桶级与事件级评分规则见 [evaluation/README.md](evaluation/README.md)，已保存结果见 [evaluation/results.synthetic-v1.md](evaluation/results.synthetic-v1.md)，完整标签、全部参数搜索与逐桶预测见 [evaluation/results.synthetic-v1.json](evaluation/results.synthetic-v1.json)。这是合成异常评测，不是独立人工标注的生产事故准确率；事件命中不代表持续故障全程覆盖，也不能据此宣称某算法普遍更准。
